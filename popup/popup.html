@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Claude Usage</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <span class="header-title">Claude Usage</span>
+      <button id="refresh-btn" class="icon-btn" title="Refresh now" aria-label="Refresh now">
+        <svg viewBox="0 0 24 24" width="16" height="16">
+          <path
+            fill="currentColor"
+            d="M17.65 6.35A7.95 7.95 0 0012 4a8 8 0 108 8h-2a6 6 0 11-1.76-4.24L13 11h7V4l-2.35 2.35z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <main id="content">
+      <section id="state-loading" class="state" hidden>
+        <p class="muted">Loading usage…</p>
+      </section>
+
+      <section id="state-error" class="state" hidden>
+        <p id="error-message" class="muted"></p>
+        <a id="login-link" href="https://claude.ai" target="_blank" rel="noopener" class="link-btn">Open claude.ai</a>
+      </section>
+
+      <section id="state-data" class="state" hidden>
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 120 120" width="150" height="150">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle id="ring-progress" class="ring-progress" cx="60" cy="60" r="52" />
+          </svg>
+          <div class="ring-center">
+            <span id="ring-percent" class="ring-percent">--%</span>
+            <span class="ring-caption">remaining</span>
+          </div>
+        </div>
+        <div class="primary-meta">
+          <span class="primary-label">Current session (5h)</span>
+          <span id="session-reset" class="reset-text"></span>
+        </div>
+
+        <div id="secondary-list" class="secondary-list"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="last-updated" class="muted small"></span>
+    </footer>
+
+    <template id="secondary-item-template">
+      <div class="secondary-item">
+        <div class="secondary-row">
+          <span class="secondary-label"></span>
+          <span class="secondary-percent"></span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill"></div>
+        </div>
+        <span class="secondary-reset reset-text"></span>
+      </div>
+    </template>
+
+    <script src="../shared/ring.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

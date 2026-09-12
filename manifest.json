@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Usage Ring",
+  "version": "1.0.0",
+  "description": "Shows your Claude.ai 5-hour session and weekly usage remaining as a rounded progress ring in the toolbar.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "claude-usage-ring@local.extension",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.svg",
+    "32": "icons/icon-32.svg",
+    "48": "icons/icon-48.svg",
+    "128": "icons/icon-128.svg"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Claude usage",
+    "default_icon": {
+      "16": "icons/icon-16.svg",
+      "32": "icons/icon-32.svg",
+      "48": "icons/icon-48.svg",
+      "128": "icons/icon-128.svg"
+    }
+  },
+  "background": {
+    "scripts": ["shared/ring.js", "background.js"]
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://claude.ai/*"]
+}

@@ -1,12 +1,33 @@
 /* global ClaudeUsageRing */
 
+// Firefox loads vendor/browser-polyfill.js + shared/ring.js via manifest
+// background.scripts, so `browser`/`ClaudeUsageRing` already exist here.
+// Chrome/Edge only honor background.service_worker (ignoring `scripts`), so
+// the service worker has to pull those two files in itself.
+if (typeof importScripts === "function" && typeof browser === "undefined") {
+  importScripts("vendor/browser-polyfill.js", "shared/ring.js");
+}
+
 const CLAUDE_ORIGIN = "https://claude.ai";
 const ALARM_NAME = "claude-usage-poll";
 const POLL_MINUTES = 5;
 const STORAGE_KEY = "claudeUsageState";
 const ORG_ID_KEY = "claudeOrgId";
+const SETTINGS_KEY = "claudeSettings";
+const DEFAULT_SETTINGS = { pollMinutes: POLL_MINUTES, orgIdOverride: null };
 
 const ICON_SIZES = [16, 32, 48];
+
+async function getSettings() {
+  const stored = (await browser.storage.local.get(SETTINGS_KEY))[SETTINGS_KEY] || {};
+  return { ...DEFAULT_SETTINGS, ...stored };
+}
+
+async function createAlarm() {
+  const settings = await getSettings();
+  const periodInMinutes = Number(settings.pollMinutes) > 0 ? Number(settings.pollMinutes) : POLL_MINUTES;
+  browser.alarms.create(ALARM_NAME, { periodInMinutes });
+}
 
 /**
  * Fetch JSON from claude.ai, relying on the user's existing session cookies
@@ -29,10 +50,21 @@ async function claudeFetchJson(path) {
     err.code = "network";
     throw err;
   }
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    // A 200 with a non-JSON body (e.g. an HTML login/interstitial page) means
+    // the session cookie isn't authenticating us, even though the status looks fine.
+    const err = new Error("Unexpected non-JSON response from claude.ai");
+    err.code = "auth";
+    throw err;
+  }
   return res.json();
 }
 
 async function getOrgId({ forceRefresh = false } = {}) {
+  const settings = await getSettings();
+  if (settings.orgIdOverride) return settings.orgIdOverride;
+
   if (!forceRefresh) {
     const cached = await browser.storage.local.get(ORG_ID_KEY);
     if (cached[ORG_ID_KEY]) return cached[ORG_ID_KEY];
@@ -44,8 +76,8 @@ async function getOrgId({ forceRefresh = false } = {}) {
     throw err;
   }
   // Most personal accounts have exactly one organization; if there are
-  // several, just take the first one. (Multi-org selection could be added
-  // as a popup setting later.)
+  // several and the user hasn't picked one in the options page
+  // (settings.orgIdOverride, checked above), just take the first one.
   const orgId = orgs[0].uuid || orgs[0].id;
   await browser.storage.local.set({ [ORG_ID_KEY]: orgId });
   return orgId;
@@ -69,11 +101,20 @@ async function fetchUsage() {
 }
 
 async function refresh() {
-  const state = { lastUpdated: Date.now(), usage: null, error: null };
+  const previous = (await browser.storage.local.get(STORAGE_KEY))[STORAGE_KEY] || {};
+  const state = {
+    lastUpdated: Date.now(),
+    usage: null,
+    error: null,
+    consecutiveFailures: 0,
+    nextAttemptAt: 0,
+  };
   try {
     state.usage = await fetchUsage();
   } catch (err) {
     state.error = err.code === "auth" ? "auth" : "network";
+    state.consecutiveFailures = (previous.consecutiveFailures || 0) + 1;
+    state.nextAttemptAt = Date.now() + ClaudeUsageRing.nextBackoffMs(state.consecutiveFailures);
   }
   await browser.storage.local.set({ [STORAGE_KEY]: state });
   await updateToolbarIcon(state);
@@ -108,7 +149,7 @@ async function updateToolbarIcon(state) {
   if (state.error) {
     await browser.action.setBadgeText({ text: "!" });
     await browser.action.setBadgeBackgroundColor({ color: "#9aa0a6" });
-    await browser.action.setTitle({ title: "Claude usage: unavailable (click for details)" });
+    await browser.action.setTitle({ title: browser.i18n.getMessage("badgeUnavailableTitle") });
     return;
   }
 
@@ -121,27 +162,46 @@ async function updateToolbarIcon(state) {
     // Not supported on all Firefox versions - badge is still readable without it.
   }
   await browser.action.setTitle({
-    title: remaining === null ? "Claude usage" : `Claude usage: ${Math.round(remaining)}% of session remaining`,
+    title:
+      remaining === null
+        ? browser.i18n.getMessage("actionTitle")
+        : browser.i18n.getMessage("titleWithPercent", [String(Math.round(remaining))]),
   });
 }
 
 browser.runtime.onInstalled.addListener(() => {
-  browser.alarms.create(ALARM_NAME, { periodInMinutes: POLL_MINUTES });
+  createAlarm();
   refresh();
 });
 
 browser.runtime.onStartup.addListener(() => {
-  browser.alarms.create(ALARM_NAME, { periodInMinutes: POLL_MINUTES });
+  createAlarm();
   refresh();
 });
 
-browser.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME) refresh();
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[SETTINGS_KEY]) return;
+  const oldValue = changes[SETTINGS_KEY].oldValue || {};
+  const newValue = changes[SETTINGS_KEY].newValue || {};
+  if (oldValue.pollMinutes !== newValue.pollMinutes) createAlarm();
+  if (oldValue.orgIdOverride !== newValue.orgIdOverride) refresh();
+});
+
+browser.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== ALARM_NAME) return;
+  const stored = (await browser.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+  // Back off from a persistently-erroring endpoint instead of retrying every
+  // POLL_MINUTES forever; a manual refresh (below) always bypasses this.
+  if (stored?.nextAttemptAt && Date.now() < stored.nextAttemptAt) return;
+  refresh();
 });
 
 browser.runtime.onMessage.addListener((message) => {
   if (message?.type === "refresh") {
     return refresh();
+  }
+  if (message?.type === "listOrgs") {
+    return claudeFetchJson("/api/organizations");
   }
   return undefined;
 });

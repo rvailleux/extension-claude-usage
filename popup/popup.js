@@ -4,12 +4,12 @@ const STORAGE_KEY = "claudeUsageState";
 const RING_RADIUS = 52;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-const SECONDARY_LABELS = {
-  seven_day: "Weekly (all models)",
-  seven_day_opus: "Weekly Opus",
-  seven_day_sonnet: "Weekly Sonnet",
-  seven_day_cowork: "Weekly Cowork",
-  seven_day_oauth: "Weekly (API)",
+const SECONDARY_LABEL_KEYS = {
+  seven_day: "secondaryLabelSevenDay",
+  seven_day_opus: "secondaryLabelSevenDayOpus",
+  seven_day_sonnet: "secondaryLabelSevenDaySonnet",
+  seven_day_cowork: "secondaryLabelSevenDayCowork",
+  seven_day_oauth: "secondaryLabelSevenDayOauth",
 };
 const SECONDARY_ORDER = [
   "seven_day",
@@ -37,12 +37,26 @@ els.ringProgress.style.strokeDasharray = String(RING_CIRCUMFERENCE);
 
 let lastState = null;
 
+function applyI18n(root = document) {
+  for (const el of root.querySelectorAll("[data-i18n]")) {
+    el.textContent = browser.i18n.getMessage(el.dataset.i18n);
+  }
+  for (const el of root.querySelectorAll("[data-i18n-title]")) {
+    el.title = browser.i18n.getMessage(el.dataset.i18nTitle);
+  }
+  for (const el of root.querySelectorAll("[data-i18n-aria-label]")) {
+    el.setAttribute("aria-label", browser.i18n.getMessage(el.dataset.i18nAriaLabel));
+  }
+}
+
 function showOnly(sectionEl) {
   for (const el of [els.loading, els.error, els.data]) {
     el.hidden = el !== sectionEl;
   }
 }
 
+// Compact time units ("5m ago", "2h 14m") are intentionally plain strings,
+// not i18n message keys - see shared/ring.js's formatCountdown for why.
 function relativeTime(ts) {
   if (!ts) return "";
   const diffSec = Math.round((Date.now() - ts) / 1000);
@@ -63,9 +77,10 @@ function renderSecondary(usage) {
     const remaining = ClaudeUsageRing.percentRemaining(bucket.utilization);
     const node = els.template.content.cloneNode(true);
 
-    node.querySelector(".secondary-label").textContent = SECONDARY_LABELS[key] || key;
+    node.querySelector(".secondary-label").textContent =
+      browser.i18n.getMessage(SECONDARY_LABEL_KEYS[key]) || key;
     node.querySelector(".secondary-percent").textContent =
-      remaining === null ? "—" : `${Math.round(remaining)}% left`;
+      remaining === null ? "—" : browser.i18n.getMessage("percentLeft", [String(Math.round(remaining))]);
 
     const fill = node.querySelector(".bar-fill");
     const color = ClaudeUsageRing.levelColor(remaining);
@@ -74,7 +89,7 @@ function renderSecondary(usage) {
 
     const resetEl = node.querySelector(".secondary-reset");
     const countdown = ClaudeUsageRing.formatCountdown(bucket.resets_at);
-    resetEl.textContent = countdown ? `Resets in ${countdown}` : "";
+    resetEl.textContent = countdown ? browser.i18n.getMessage("resetsIn", [countdown]) : "";
 
     els.secondaryList.appendChild(node);
   }
@@ -90,11 +105,10 @@ function render(state) {
 
   if (state.error) {
     showOnly(els.error);
-    els.errorMessage.textContent =
-      state.error === "auth"
-        ? "Not signed in to claude.ai. Sign in, then reopen this popup."
-        : "Couldn't reach claude.ai. Check your connection and try again.";
-    els.lastUpdated.textContent = state.lastUpdated ? `Last tried ${relativeTime(state.lastUpdated)}` : "";
+    els.errorMessage.textContent = browser.i18n.getMessage(state.error === "auth" ? "errorAuth" : "errorNetwork");
+    els.lastUpdated.textContent = state.lastUpdated
+      ? browser.i18n.getMessage("lastTried", [relativeTime(state.lastUpdated)])
+      : "";
     return;
   }
 
@@ -115,14 +129,17 @@ function render(state) {
   els.ringProgress.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction));
 
   const countdown = fiveHour ? ClaudeUsageRing.formatCountdown(fiveHour.resets_at) : null;
-  els.sessionReset.textContent = countdown ? `Resets in ${countdown}` : "";
+  els.sessionReset.textContent = countdown ? browser.i18n.getMessage("resetsIn", [countdown]) : "";
 
   renderSecondary(state.usage);
 
-  els.lastUpdated.textContent = state.lastUpdated ? `Updated ${relativeTime(state.lastUpdated)}` : "";
+  els.lastUpdated.textContent = state.lastUpdated
+    ? browser.i18n.getMessage("updatedAgo", [relativeTime(state.lastUpdated)])
+    : "";
 }
 
 async function loadInitial() {
+  applyI18n();
   const stored = await browser.storage.local.get(STORAGE_KEY);
   render(stored[STORAGE_KEY] || null);
 }

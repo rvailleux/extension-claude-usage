@@ -1,0 +1,147 @@
+{
+  "extName": {
+    "message": "Claude Usage Ring",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Shows your Claude.ai 5-hour session and weekly usage remaining as a rounded progress ring in the toolbar.",
+    "description": "Extension description"
+  },
+  "actionTitle": {
+    "message": "Claude usage",
+    "description": "Default toolbar button tooltip"
+  },
+  "popupTitle": {
+    "message": "Claude Usage",
+    "description": "Popup document title"
+  },
+  "headerTitle": {
+    "message": "Claude Usage",
+    "description": "Popup header text"
+  },
+  "refreshButtonLabel": {
+    "message": "Refresh now",
+    "description": "Refresh button title/aria-label"
+  },
+  "loadingText": {
+    "message": "Loading usage…",
+    "description": "Shown while the first fetch is in flight"
+  },
+  "openClaudeLink": {
+    "message": "Open claude.ai",
+    "description": "Link shown in the auth-error state"
+  },
+  "primaryLabel": {
+    "message": "Current session (5h)",
+    "description": "Label above the main ring"
+  },
+  "ringCaption": {
+    "message": "remaining",
+    "description": "Small caption under the ring percentage"
+  },
+  "errorAuth": {
+    "message": "Not signed in to claude.ai. Sign in, then reopen this popup.",
+    "description": "Shown when the API responds 401/403 or a non-JSON body"
+  },
+  "errorNetwork": {
+    "message": "Couldn't reach claude.ai. Check your connection and try again.",
+    "description": "Shown on any other fetch failure"
+  },
+  "lastTried": {
+    "message": "Last tried $TIME$",
+    "description": "Footer text in the error state",
+    "placeholders": { "time": { "content": "$1" } }
+  },
+  "updatedAgo": {
+    "message": "Updated $TIME$",
+    "description": "Footer text once usage data has loaded",
+    "placeholders": { "time": { "content": "$1" } }
+  },
+  "resetsIn": {
+    "message": "Resets in $TIME$",
+    "description": "Countdown text under a ring/bar",
+    "placeholders": { "time": { "content": "$1" } }
+  },
+  "percentLeft": {
+    "message": "$PERCENT$% left",
+    "description": "Weekly bar percentage label",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "secondaryLabelSevenDay": {
+    "message": "Weekly (all models)",
+    "description": "Weekly usage bucket label"
+  },
+  "secondaryLabelSevenDayOpus": {
+    "message": "Weekly Opus",
+    "description": "Weekly usage bucket label"
+  },
+  "secondaryLabelSevenDaySonnet": {
+    "message": "Weekly Sonnet",
+    "description": "Weekly usage bucket label"
+  },
+  "secondaryLabelSevenDayCowork": {
+    "message": "Weekly Cowork",
+    "description": "Weekly usage bucket label"
+  },
+  "secondaryLabelSevenDayOauth": {
+    "message": "Weekly (API)",
+    "description": "Weekly usage bucket label"
+  },
+  "badgeUnavailableTitle": {
+    "message": "Claude usage: unavailable (click for details)",
+    "description": "Toolbar tooltip when the last poll failed"
+  },
+  "titleWithPercent": {
+    "message": "Claude usage: $PERCENT$% of session remaining",
+    "description": "Toolbar tooltip once usage data has loaded",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "optionsPageTitle": {
+    "message": "Claude Usage Ring Settings",
+    "description": "Options page document title"
+  },
+  "optionsHeading": {
+    "message": "Claude Usage Ring",
+    "description": "Options page heading"
+  },
+  "pollLabel": {
+    "message": "Check for updates every",
+    "description": "Options page poll-interval field label"
+  },
+  "minutesUnit": {
+    "message": "minutes",
+    "description": "Unit shown next to the poll-interval number input"
+  },
+  "orgLabel": {
+    "message": "Organization",
+    "description": "Options page org-picker field label"
+  },
+  "orgAutomatic": {
+    "message": "Automatic (first organization)",
+    "description": "Default org-picker option"
+  },
+  "reloadOrgsTitle": {
+    "message": "Reload organization list",
+    "description": "Reload button title"
+  },
+  "orgLoading": {
+    "message": "Loading organizations…",
+    "description": "Org-picker hint while fetching"
+  },
+  "orgMultiple": {
+    "message": "Multiple organizations found — pick one, or leave on Automatic.",
+    "description": "Org-picker hint when more than one org exists"
+  },
+  "orgLoadError": {
+    "message": "Couldn't load organizations. Make sure you're signed in to claude.ai.",
+    "description": "Org-picker hint on fetch failure"
+  },
+  "saveButton": {
+    "message": "Save",
+    "description": "Options page save button"
+  },
+  "savedStatus": {
+    "message": "Saved.",
+    "description": "Options page save confirmation"
+  }
+}

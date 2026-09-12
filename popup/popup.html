@@ -2,13 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Claude Usage</title>
+    <title data-i18n="popupTitle">Claude Usage</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header class="header">
-      <span class="header-title">Claude Usage</span>
-      <button id="refresh-btn" class="icon-btn" title="Refresh now" aria-label="Refresh now">
+      <span class="header-title" data-i18n="headerTitle">Claude Usage</span>
+      <button
+        id="refresh-btn"
+        class="icon-btn"
+        data-i18n-title="refreshButtonLabel"
+        data-i18n-aria-label="refreshButtonLabel"
+        title="Refresh now"
+        aria-label="Refresh now"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16">
           <path
             fill="currentColor"
@@ -18,14 +25,22 @@
       </button>
     </header>
 
-    <main id="content">
+    <main id="content" aria-live="polite">
       <section id="state-loading" class="state" hidden>
-        <p class="muted">Loading usage…</p>
+        <p class="muted" data-i18n="loadingText">Loading usage…</p>
       </section>
 
       <section id="state-error" class="state" hidden>
         <p id="error-message" class="muted"></p>
-        <a id="login-link" href="https://claude.ai" target="_blank" rel="noopener" class="link-btn">Open claude.ai</a>
+        <a
+          id="login-link"
+          href="https://claude.ai"
+          target="_blank"
+          rel="noopener"
+          class="link-btn"
+          data-i18n="openClaudeLink"
+          >Open claude.ai</a
+        >
       </section>
 
       <section id="state-data" class="state" hidden>
@@ -36,11 +51,11 @@
           </svg>
           <div class="ring-center">
             <span id="ring-percent" class="ring-percent">--%</span>
-            <span class="ring-caption">remaining</span>
+            <span class="ring-caption" data-i18n="ringCaption">remaining</span>
           </div>
         </div>
         <div class="primary-meta">
-          <span class="primary-label">Current session (5h)</span>
+          <span class="primary-label" data-i18n="primaryLabel">Current session (5h)</span>
           <span id="session-reset" class="reset-text"></span>
         </div>
 
@@ -65,6 +80,7 @@
       </div>
     </template>
 
+    <script src="../vendor/browser-polyfill.js"></script>
     <script src="../shared/ring.js"></script>
     <script src="popup.js"></script>
   </body>

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claude Usage Ring",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Shows your Claude.ai 5-hour session and weekly usage remaining as a rounded progress ring in the toolbar.",
   "browser_specific_settings": {
     "gecko": {

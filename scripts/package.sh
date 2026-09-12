@@ -29,6 +29,17 @@ ARTIFACTS_DIR="web-ext-artifacts"
 DO_SIGN=false
 CHANNEL="unlisted" # unlisted = self-distribute the signed .xpi yourself, no AMO review/listing.
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required (used to read name/version from manifest.json) but was not found in PATH." >&2
+  exit 1
+fi
+
+# Output filename: <slugified manifest name>-<version>, e.g. "claude-usage-ring-1.0.1".
+MANIFEST_NAME="$(jq -r '.name' manifest.json)"
+MANIFEST_VERSION="$(jq -r '.version' manifest.json)"
+SLUG="$(echo "$MANIFEST_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
+OUTPUT_BASENAME="${SLUG}-${MANIFEST_VERSION}"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --sign)
@@ -69,6 +80,7 @@ if [[ "$DO_SIGN" == false ]]; then
   npx --yes web-ext@latest build \
     --source-dir . \
     --artifacts-dir "$ARTIFACTS_DIR" \
+    --filename "${OUTPUT_BASENAME}.zip" \
     --overwrite-dest \
     "${IGNORE_ARGS[@]}"
 
@@ -107,12 +119,26 @@ export WEB_EXT_API_SECRET="$JWT_SECRET"
 
 echo "==> Building and signing package (channel: $CHANNEL)"
 # web-ext sign builds the zip itself from --source-dir; reads WEB_EXT_API_KEY /
-# WEB_EXT_API_SECRET from the environment automatically.
+# WEB_EXT_API_SECRET from the environment automatically. Unlike `build`, `sign`
+# has no --filename flag - it names the downloaded .xpi after the AMO-assigned
+# extension id, so rename it to our convention afterwards.
+BEFORE_XPIS="$(ls -1 "$ARTIFACTS_DIR"/*.xpi 2>/dev/null || true)"
+
 npx --yes web-ext@latest sign \
   --source-dir . \
   --artifacts-dir "$ARTIFACTS_DIR" \
   --channel "$CHANNEL" \
   "${IGNORE_ARGS[@]}"
 
-echo "==> Done. Signed .xpi written to $ARTIFACTS_DIR/ (install directly, no dev flags needed)."
+NEW_XPI="$(comm -13 <(echo "$BEFORE_XPIS" | sort) <(ls -1 "$ARTIFACTS_DIR"/*.xpi 2>/dev/null | sort) | head -n1)"
+if [[ -z "$NEW_XPI" ]]; then
+  # Fallback: most recently modified .xpi, in case the filename happened to
+  # already exist (e.g. an identical previous artifact wasn't cleaned up).
+  NEW_XPI="$(ls -t "$ARTIFACTS_DIR"/*.xpi 2>/dev/null | head -n1)"
+fi
+if [[ -n "$NEW_XPI" ]]; then
+  mv -f "$NEW_XPI" "$ARTIFACTS_DIR/${OUTPUT_BASENAME}.xpi"
+fi
+
+echo "==> Done. Signed .xpi written to $ARTIFACTS_DIR/${OUTPUT_BASENAME}.xpi (install directly, no dev flags needed)."
 ls -la "$ARTIFACTS_DIR"

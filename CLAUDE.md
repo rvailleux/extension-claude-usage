@@ -133,4 +133,29 @@ list rather than `.gitignore` if a new repo-only file needs excluding from
 the extension zip/xpi too. `web-ext sign` (unlike `build`) has no
 `--filename` flag and names its output after the AMO-assigned extension id,
 so the script renames the result after the fact to match `build`'s
-`<slug>-<version>` convention.
+`<slug>-<version>` convention. Because `manifest.json`'s `name` is the i18n
+placeholder `__MSG_extName__` rather than a literal string, the script
+resolves it via `_locales/<default_locale>/messages.json` before slugifying
+— if you add another `__MSG_...__`-style manifest field the script reads
+directly, it'll need the same resolution or it'll slugify the placeholder
+text itself (this shipped once, as `msg-extname-1.0.5.zip`, before being
+fixed).
+
+## Release & workflow conventions
+
+- Changes land via a PR into `main`, merged with **squash** (the
+  established preference in this repo) — not a plain merge or rebase.
+- A version release is: bump `manifest.json`'s `version`, add a dated entry
+  to `CHANGELOG.md` (rename `[Unreleased]` to `[x.y.z] - YYYY-MM-DD` and add
+  a fresh empty `[Unreleased]` above it), commit, tag as `vX.Y.Z` matching
+  the manifest version exactly, then push the tag — see the Commands
+  section above for what that triggers.
+- Third-party code is vendored into `vendor/` (see `vendor/README.md` for
+  the update command) rather than introducing a package manager/build
+  step — keep following that pattern for any future dependency rather than
+  adding `package.json`/`node_modules`.
+- A GitHub Release's assets can be renamed after the fact via
+  `gh api -X PATCH repos/<owner>/<repo>/releases/assets/<id> -f name=<new-name>`
+  without touching their bytes — useful for fixing a filename mistake
+  without re-running `--sign` (which fails on a version AMO has already
+  signed).

@@ -41,6 +41,13 @@ browser from source.
   **AMO rejects re-signing a version it has already seen** (even a no-op
   retry) — bump `manifest.json`'s `version` before re-running `--sign` if a
   prior attempt for the current version already succeeded or conflicted.
+- **Release**: pushing a tag matching `v*` (e.g. `v1.0.5`, matching
+  `manifest.json`'s version) triggers `.github/workflows/release.yml`, which
+  runs both package.sh invocations above (unsigned zip + signed xpi) and
+  attaches the results to a new GitHub Release. Requires `JWT_ISSUER`/
+  `JWT_SECRET` repository secrets (Settings → Secrets and variables →
+  Actions) — these are separate from any local `.env` and must be added by
+  a repo admin in the GitHub UI, not committed anywhere.
 
 ## Architecture
 

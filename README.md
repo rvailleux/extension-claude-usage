@@ -164,6 +164,10 @@ options**):
 
 ## Package for distribution
 
+This section is the manual, local equivalent of what the [Releasing](#releasing)
+workflow does automatically on a version tag push — use it to build/sign a
+one-off package without cutting a full release.
+
 `scripts/package.sh` targets **Firefox** distribution via
 [web-ext](https://github.com/mozilla/web-ext) and Mozilla's signing API (see
 below). For Chrome/Edge, zip this folder (or reuse the same
@@ -177,7 +181,7 @@ neither needs the AMO signing step described below.
 ```
 
 Lints the extension, then builds an **unsigned** zip at
-`web-ext-artifacts/claude_usage_ring-<version>.zip` (README.md and the
+`web-ext-artifacts/claude-usage-ring-<version>.zip` (README.md and the
 `scripts/` folder are excluded from the package). This zip can only be
 loaded temporarily (`about:debugging` → Load Temporary Add-on) — Firefox
 refuses to install it permanently until it's signed by Mozilla.

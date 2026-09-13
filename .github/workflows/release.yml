@@ -1,0 +1,64 @@
+name: Release
+
+# Triggered by pushing a version tag, e.g.:
+#   git tag v1.0.5 && git push origin v1.0.5
+# Builds both distributable artifacts and attaches them to a GitHub Release:
+#   - <slug>-<version>.zip  - unsigned, works for Chrome/Edge "Load unpacked"/
+#                             store upload, and Firefox temporary-add-on install
+#   - <slug>-<version>.xpi  - signed via Mozilla's AMO API, installs directly
+#                             in Firefox with no dev flags
+#
+# Requires two repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret), from an AMO API key/secret pair at
+# https://addons.mozilla.org/developers/addon/api/key/:
+#   JWT_ISSUER
+#   JWT_SECRET
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify tag matches manifest.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(jq -r '.version' manifest.json)"
+          if [[ "$TAG_VERSION" != "$MANIFEST_VERSION" ]]; then
+            echo "Tag $GITHUB_REF_NAME (version $TAG_VERSION) doesn't match manifest.json's version ($MANIFEST_VERSION)." >&2
+            echo "Bump manifest.json's version, commit it, then tag that commit." >&2
+            exit 1
+          fi
+
+      - name: Build unsigned zip (Chrome/Edge + Firefox temporary-install)
+        run: ./scripts/package.sh
+
+      - name: Build + sign Firefox .xpi
+        env:
+          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: ./scripts/package.sh --sign
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ASSETS=(web-ext-artifacts/*.zip web-ext-artifacts/*.xpi)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --title "$TAG" --generate-notes
+          fi

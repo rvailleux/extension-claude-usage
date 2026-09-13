@@ -213,6 +213,28 @@ See [Signing and distributing your
 add-on](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
 for background on the two channels.
 
+## Releasing
+
+Pushing a version tag builds both artifacts and publishes them to a GitHub
+Release, so the latest build for each platform is always available from
+this repo without a manual build step:
+
+1. Bump `manifest.json`'s `version`, commit it.
+2. Tag that commit and push the tag:
+   ```
+   git tag v1.0.5
+   git push origin v1.0.5
+   ```
+3. `.github/workflows/release.yml` builds the unsigned zip (Chrome/Edge +
+   Firefox temporary-install) and the signed `.xpi` (permanent Firefox
+   install), then attaches both to a new Release named after the tag.
+
+This requires two repository secrets, from an AMO API key/secret pair (see
+"Sign it" above): **Settings → Secrets and variables → Actions → New
+repository secret** — `JWT_ISSUER` and `JWT_SECRET`. The workflow fails
+fast if the tag's version doesn't match `manifest.json`'s (a mismatch
+usually means the version bump wasn't committed before tagging).
+
 ## Testing
 
 ```
@@ -244,7 +266,8 @@ _locales/en/messages.json  User-facing strings (browser.i18n)
 icons/icon-*.svg       Source art
 icons/icon-*.png       Generated from the SVGs (Chrome/Edge require PNG icons);
                         overwritten dynamically once real usage data loads
-.github/workflows/ci.yml  Lint + unit tests on push/PR
+.github/workflows/ci.yml       Lint + unit tests on push/PR
+.github/workflows/release.yml  Builds + publishes a GitHub Release on a version tag push
 scripts/package.sh     Lints, builds, and (optionally) signs the Firefox package
 ```
 

@@ -35,7 +35,22 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Output filename: <slugified manifest name>-<version>, e.g. "claude-usage-ring-1.0.1".
+# manifest.json's "name" may be an i18n placeholder (__MSG_key__) rather than
+# a literal string; resolve it via _locales/<default_locale>/messages.json so
+# the output isn't literally named e.g. "msg-extname-1.0.5.zip".
 MANIFEST_NAME="$(jq -r '.name' manifest.json)"
+if [[ "$MANIFEST_NAME" =~ ^__MSG_(.+)__$ ]]; then
+  MSG_KEY="${BASH_REMATCH[1]}"
+  DEFAULT_LOCALE="$(jq -r '.default_locale // "en"' manifest.json)"
+  MESSAGES_FILE="_locales/$DEFAULT_LOCALE/messages.json"
+  if [[ -f "$MESSAGES_FILE" ]]; then
+    MANIFEST_NAME="$(jq -r --arg k "$MSG_KEY" '.[$k].message // empty' "$MESSAGES_FILE")"
+  fi
+  if [[ -z "$MANIFEST_NAME" ]]; then
+    echo "Couldn't resolve manifest name placeholder __MSG_${MSG_KEY}__ from $MESSAGES_FILE" >&2
+    exit 1
+  fi
+fi
 MANIFEST_VERSION="$(jq -r '.version' manifest.json)"
 SLUG="$(echo "$MANIFEST_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
 OUTPUT_BASENAME="${SLUG}-${MANIFEST_VERSION}"

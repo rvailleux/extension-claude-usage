@@ -7,6 +7,15 @@ entry.
 
 ## [Unreleased]
 
+### Fixed
+
+- `scripts/package.sh` now resolves `manifest.json`'s `name` when it's an
+  i18n placeholder (`__MSG_extName__`) via `_locales/<default_locale>/messages.json`
+  before slugifying it for the output filename. Previously it used the
+  literal placeholder text, producing artifacts named e.g.
+  `msg-extname-1.0.5.zip` instead of `claude-usage-ring-1.0.5.zip` — this
+  is what shipped on the v1.0.5 GitHub Release.
+
 ## [1.0.5] - 2026-09-13
 
 ### Added

@@ -7,6 +7,8 @@ entry.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-13
+
 ### Added
 
 - Chrome/Edge support alongside Firefox: vendored `webextension-polyfill`
@@ -25,6 +27,10 @@ entry.
   announce refreshed usage/status without reopening.
 - Explicit `content_security_policy` in the manifest (matches MV3's implicit
   default, documented for clarity).
+- Tag-triggered release workflow (`.github/workflows/release.yml`):
+  pushing a `v*` tag builds the unsigned zip (Chrome/Edge + Firefox
+  temporary-install) and the AMO-signed `.xpi` (permanent Firefox install)
+  and publishes both to a GitHub Release.
 
 ### Changed
 

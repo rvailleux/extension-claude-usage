@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title data-i18n="optionsPageTitle">Claude Usage Ring Settings</title>
+    <link rel="stylesheet" href="../popup/popup.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="options-main">
+      <h1 class="options-title" data-i18n="optionsHeading">Claude Usage Ring</h1>
+
+      <section class="options-field">
+        <label for="poll-minutes" data-i18n="pollLabel">Check for updates every</label>
+        <div class="options-row">
+          <input type="number" id="poll-minutes" min="1" max="1440" step="1" />
+          <span class="muted" data-i18n="minutesUnit">minutes</span>
+        </div>
+      </section>
+
+      <section class="options-field">
+        <label for="org-select" data-i18n="orgLabel">Organization</label>
+        <div class="options-row">
+          <select id="org-select">
+            <option value="" data-i18n="orgAutomatic">Automatic (first organization)</option>
+          </select>
+          <button
+            id="reload-orgs-btn"
+            class="icon-btn"
+            type="button"
+            data-i18n-title="reloadOrgsTitle"
+            title="Reload organization list"
+          >
+            ↻
+          </button>
+        </div>
+        <p id="org-hint" class="muted small" aria-live="polite"></p>
+      </section>
+
+      <div class="options-actions">
+        <button id="save-btn" class="link-btn" type="button" data-i18n="saveButton">Save</button>
+        <span id="save-status" class="muted small" role="status"></span>
+      </div>
+    </main>
+
+    <script src="../vendor/browser-polyfill.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

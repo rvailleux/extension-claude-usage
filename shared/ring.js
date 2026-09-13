@@ -34,7 +34,13 @@
     return "#2fb344"; // green
   }
 
-  /** Human countdown like "2h 14m" / "5d 3h" / "<1m" until an ISO timestamp. */
+  /**
+   * Human countdown like "2h 14m" / "5d 3h" / "<1m" until an ISO timestamp.
+   * Units are plain strings rather than i18n message keys: this file has to
+   * stay dependency-free (loaded via classic <script>/importScripts in three
+   * contexts, and required directly under plain Node for ring.test.js), and
+   * `browser.i18n` isn't available in that last one.
+   */
   function formatCountdown(resetsAtIso) {
     if (!resetsAtIso) return null;
     const resetMs = new Date(resetsAtIso).getTime();
@@ -51,6 +57,20 @@
     if (hours > 0) return `${hours}h ${mins}m`;
     if (mins > 0) return `${mins}m`;
     return "<1m";
+  }
+
+  const BACKOFF_BASE_MS = 5 * 60 * 1000;
+  const BACKOFF_CAP_MS = 60 * 60 * 1000;
+
+  /**
+   * Delay (ms) before the next poll should be attempted after N consecutive
+   * failures: 0 after success, then 5m/10m/20m/40m, capped at 60m. Keeps a
+   * persistently-erroring endpoint from being hit every POLL_MINUTES forever.
+   */
+  function nextBackoffMs(consecutiveFailures) {
+    if (!Number.isFinite(consecutiveFailures) || consecutiveFailures <= 0) return 0;
+    const ms = BACKOFF_BASE_MS * Math.pow(2, consecutiveFailures - 1);
+    return Math.min(BACKOFF_CAP_MS, ms);
   }
 
   /** Draw a rounded-cap progress ring into a 2D canvas context. */
@@ -89,6 +109,7 @@
     percentRemaining,
     levelColor,
     formatCountdown,
+    nextBackoffMs,
     drawRing,
   };
 })(typeof self !== "undefined" ? self : this);

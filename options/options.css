@@ -1,0 +1,64 @@
+body {
+  width: auto;
+}
+
+.options-main {
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.options-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+
+.options-field {
+  margin-bottom: 18px;
+}
+
+.options-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.options-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.options-row input[type="number"] {
+  width: 70px;
+}
+
+.options-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+input,
+select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.options-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.options-actions .link-btn {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Lint extension
+        run: >
+          npx --yes web-ext@latest lint --source-dir .
+          --ignore-files "README.md"
+          --ignore-files "scripts/**"
+          --ignore-files "*.sh"
+          --ignore-files "web-ext-artifacts/**"
+          --ignore-files ".git/**"
+
+      - name: Unit tests
+        run: node --test

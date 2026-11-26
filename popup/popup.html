@@ -2,70 +2,80 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title data-i18n="popupTitle">Claude Usage</title>
+    <title data-i18n="popupTitle">Usage</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header class="header">
-      <span class="header-title" data-i18n="headerTitle">Claude Usage</span>
-      <button
-        id="refresh-btn"
-        class="icon-btn"
-        data-i18n-title="refreshButtonLabel"
-        data-i18n-aria-label="refreshButtonLabel"
-        title="Refresh now"
-        aria-label="Refresh now"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16">
-          <path
-            fill="currentColor"
-            d="M17.65 6.35A7.95 7.95 0 0012 4a8 8 0 108 8h-2a6 6 0 11-1.76-4.24L13 11h7V4l-2.35 2.35z"
-          />
-        </svg>
-      </button>
+      <span class="header-title" data-i18n="headerTitle">Usage</span>
+      <div class="header-actions">
+        <button
+          id="options-btn"
+          class="icon-btn"
+          data-i18n-title="openOptionsTitle"
+          data-i18n-aria-label="openOptionsTitle"
+          title="Settings"
+          aria-label="Settings"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path
+              fill="currentColor"
+              d="M19.14 12.94a7.07 7.07 0 000-1.88l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96a7.3 7.3 0 00-1.62-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.58.24-1.12.55-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.71 8.84a.5.5 0 00.12.64l2.03 1.58a7.07 7.07 0 000 1.88l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.13.23.4.31.6.22l2.39-.96c.5.39 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96c.23.09.48 0 .6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"
+            />
+          </svg>
+        </button>
+        <button
+          id="refresh-btn"
+          class="icon-btn"
+          data-i18n-title="refreshButtonLabel"
+          data-i18n-aria-label="refreshButtonLabel"
+          title="Refresh now"
+          aria-label="Refresh now"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path
+              fill="currentColor"
+              d="M17.65 6.35A7.95 7.95 0 0012 4a8 8 0 108 8h-2a6 6 0 11-1.76-4.24L13 11h7V4l-2.35 2.35z"
+            />
+          </svg>
+        </button>
+      </div>
     </header>
 
     <main id="content" aria-live="polite">
-      <section id="state-loading" class="state" hidden>
-        <p class="muted" data-i18n="loadingText">Loading usage…</p>
-      </section>
+      <p id="state-loading" class="state muted" data-i18n="loadingText" hidden>Loading usage…</p>
+      <div id="providers"></div>
+    </main>
 
-      <section id="state-error" class="state" hidden>
-        <p id="error-message" class="muted"></p>
-        <a
-          id="login-link"
-          href="https://claude.ai"
-          target="_blank"
-          rel="noopener"
-          class="link-btn"
-          data-i18n="openClaudeLink"
-          >Open claude.ai</a
-        >
-      </section>
+    <template id="provider-template">
+      <section class="provider">
+        <div class="provider-head">
+          <span class="provider-name"></span>
+          <span class="provider-updated muted small"></span>
+        </div>
 
-      <section id="state-data" class="state" hidden>
         <div class="ring-wrap">
-          <svg class="ring" viewBox="0 0 120 120" width="150" height="150">
+          <svg class="ring" viewBox="0 0 120 120" width="132" height="132">
             <circle class="ring-track" cx="60" cy="60" r="52" />
-            <circle id="ring-progress" class="ring-progress" cx="60" cy="60" r="52" />
+            <circle class="ring-progress" cx="60" cy="60" r="52" />
           </svg>
           <div class="ring-center">
-            <span id="ring-percent" class="ring-percent">--%</span>
+            <span class="ring-percent">—</span>
             <span class="ring-caption" data-i18n="ringCaption">remaining</span>
           </div>
         </div>
+
         <div class="primary-meta">
-          <span class="primary-label" data-i18n="primaryLabel">Current session (5h)</span>
-          <span id="session-reset" class="reset-text"></span>
+          <span class="primary-label"></span>
+          <span class="reset-text"></span>
         </div>
 
-        <div id="secondary-list" class="secondary-list"></div>
-      </section>
-    </main>
+        <div class="secondary-list"></div>
 
-    <footer class="footer">
-      <span id="last-updated" class="muted small"></span>
-    </footer>
+        <p class="provider-note muted small" hidden></p>
+        <button class="provider-action link-btn small" type="button" hidden></button>
+      </section>
+    </template>
 
     <template id="secondary-item-template">
       <div class="secondary-item">
@@ -82,6 +92,7 @@
 
     <script src="../vendor/browser-polyfill.js"></script>
     <script src="../shared/ring.js"></script>
+    <script src="../shared/usage.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

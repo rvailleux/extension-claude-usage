@@ -43,6 +43,12 @@ body {
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .icon-btn {
   background: none;
   border: none;
@@ -75,7 +81,8 @@ main {
   padding: 18px 16px 6px;
 }
 
-.state[hidden] {
+.state[hidden],
+[hidden] {
   display: none !important;
 }
 
@@ -98,20 +105,20 @@ main {
   text-decoration: none;
 }
 
-#state-loading,
-#state-error {
+#state-loading {
   text-align: center;
   padding: 20px 0;
 }
 
 .ring-wrap {
   position: relative;
-  width: 150px;
-  height: 150px;
+  width: 132px;
+  height: 132px;
   margin: 0 auto;
 }
 
 .ring {
+  display: block;
   transform: rotate(-90deg);
 }
 
@@ -216,4 +223,36 @@ main {
 .footer {
   padding: 8px 16px 12px;
   text-align: center;
+}
+
+.provider + .provider {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.provider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.provider-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.provider-note {
+  margin: 8px 0 0;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.provider-action {
+  display: block;
+  margin: 10px auto 0;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }

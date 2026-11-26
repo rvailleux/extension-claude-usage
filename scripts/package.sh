@@ -81,6 +81,9 @@ fi
 # Files that belong in the repo but not in the shipped extension package.
 IGNORE_ARGS=(
   --ignore-files "README.md"
+  --ignore-files "CLAUDE.md"
+  --ignore-files "CHANGELOG.md"
+  --ignore-files "**/*.test.js"
   --ignore-files "scripts/**"
   --ignore-files "*.sh"
   --ignore-files "$ARTIFACTS_DIR/**"

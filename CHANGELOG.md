@@ -7,6 +7,38 @@ entry.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-26
+
+### Added
+
+- **OpenCode Go subscription usage** next to Claude: the popup now has a
+  second block with the rolling 5-hour, weekly and monthly windows, each with
+  its own reset countdown. Data comes from `GET
+  https://opencode.ai/zen/go/v1/usage` with the Go API key as a Bearer token
+  (new `https://opencode.ai/*` host permission); a wrong key or a plan-less
+  account is reported as an error instead of a fabricated `0%`.
+- Options page: an OpenCode Go API key field with a **Check key** button that
+  verifies the typed key before saving, and a **Toolbar ring shows** picker
+  (Claude / OpenCode Go / lowest of both).
+- `shared/usage.js` (+ `shared/usage.test.js`): DOM-free normalization of the
+  OpenCode Go payload, skipping windows the API doesn't report a number for.
+- `background.test.js`: runs the real `background.js` in a `vm` context with
+  a stubbed `browser`/`fetch`, covering both polls, the per-provider
+  error/backoff state and the icon-selection rules.
+
+### Changed
+
+- The extension is now named **Usage Ring** (was "Claude Usage Ring"), so the
+  packaged artifacts are `usage-ring-<version>.*`. The Firefox add-on id is
+  unchanged, so existing installs update in place.
+- Each provider is polled into its own storage key (`claudeUsageState`,
+  `opencodeUsageState`) with its own failure backoff, so one broken provider
+  no longer masks the other.
+- The toolbar icon/badge falls back to the other provider when the selected
+  one has no data, and only shows `!` when no reading can be displayed.
+- `scripts/package.sh` and CI now exclude `*.test.js` and the repo docs
+  (`CLAUDE.md`, `CHANGELOG.md`) from the shipped package.
+
 ### Fixed
 
 - `scripts/package.sh` now resolves `manifest.json`'s `name` when it's an

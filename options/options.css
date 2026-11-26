@@ -35,6 +35,36 @@ body {
   width: 70px;
 }
 
+.options-row input[type="password"],
+.options-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.options-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.secondary-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secondary-btn:hover {
+  border-color: var(--muted);
+}
+
 .options-row select {
   flex: 1;
   min-width: 0;

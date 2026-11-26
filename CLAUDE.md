@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A cross-browser WebExtension (Manifest V3; Firefox, Chrome, Edge) that shows
-the user's claude.ai usage (5-hour session + weekly limits) as a rounded
-progress ring in the toolbar icon/badge, a popup, and an options page. Plain
+the user's claude.ai usage (5-hour session + weekly limits) *and* their
+OpenCode Go subscription usage (rolling 5-hour, weekly, monthly) as rounded
+progress rings in the toolbar icon/badge, a popup, and an options page. Plain
 JS/CSS/SVG, no build step, no package manager — third-party code (the
 `browser.*` polyfill) is vendored directly instead. Loaded directly by the
 browser from source.
@@ -24,8 +25,12 @@ browser from source.
   `BACKGROUND_SERVICE_WORKER_IGNORED` — that's Firefox correctly ignoring the
   `service_worker` key it doesn't use (see Architecture below); anything else
   is a real issue.
-- **Unit tests**: `node --test` (runs `shared/ring.test.js`, no dependencies
-  needed). Also run in CI (`.github/workflows/ci.yml`).
+- **Unit tests**: `node --test` (runs `shared/ring.test.js`,
+  `shared/usage.test.js` and `background.test.js`, no dependencies needed).
+  `background.test.js` evaluates the real `background.js` inside a `vm`
+  context with stubbed `browser`/`fetch`/`OffscreenCanvas`, so the polling
+  orchestration is covered without a browser. Also run in CI
+  (`.github/workflows/ci.yml`).
 - **Package (unsigned zip)**: `./scripts/package.sh` — Firefox-targeted:
   lints, then builds `web-ext-artifacts/<slug>-<version>.zip` via
   `web-ext build --filename`. Unsigned zips only install temporarily in
@@ -81,14 +86,28 @@ cookie-bearing fetch possible):
 A 200 response whose body isn't JSON (typically an HTML login/interstitial
 page) is treated as an auth failure, not a generic network error.
 
+**Second data source — OpenCode Go**: `GET
+https://opencode.ai/zen/go/v1/usage` with `Authorization: Bearer
+<settings.opencodeApiKey>`. It is *not* cookie-authenticated (the claude.ai
+session can't be reused), so the key is pasted in the options page and kept
+in `browser.storage.local`; `background.js` never falls back to another
+credential. Response shape: `{ usage: { rolling, weekly, monthly } }`, each
+`{ status, percent, resetsAt }` where `percent` is the share *used*.
+`shared/usage.js#opencodeWindows` is the only place that shape is parsed —
+keep it there. No key configured is not an error: the state gets
+`configured: false` and the popup points at the options page; 401/403 maps to
+`error: "auth"` ("key rejected or no Go plan").
+
 Fetched state is written to `browser.storage.local` under one key
-(`claudeUsageState` = `{ lastUpdated, usage, error, consecutiveFailures,
-nextAttemptAt }`) — this is the single source of truth both the toolbar icon
-and the popup render from. `consecutiveFailures`/`nextAttemptAt` drive a
-capped exponential backoff (`ClaudeUsageRing.nextBackoffMs`, in
-`shared/ring.js`) so the alarm handler skips polling while backing off; a
-manual refresh (the popup's button, or the `{ type: "refresh" }` message)
-always bypasses it.
+(`claudeUsageState` = `{ configured, lastUpdated, usage, error,
+consecutiveFailures, nextAttemptAt }`, plus a parallel `opencodeUsageState`
+for the second provider) — these are the single source of truth both the
+toolbar icon and the popup render from. `consecutiveFailures`/`nextAttemptAt`
+drive a capped exponential backoff (`ClaudeUsageRing.nextBackoffMs`, in
+`shared/ring.js`) *per provider*, so a bad OpenCode key can't delay the Claude
+poll (or vice versa); the alarm handler passes `{ respectBackoff: true }`
+while a manual refresh (the popup's button, or the `{ type: "refresh" }`
+message) always polls.
 
 **shared/ring.js** is a dependency-free, classic (non-ES-module) script that
 defines a global `ClaudeUsageRing` object. It's loaded in three contexts —
@@ -98,7 +117,18 @@ DOM-free to keep working in all of them. `shared/ring.test.js` covers it
 directly with `node --test`, requiring the file via CommonJS (`global` in
 its IIFE resolves to `module.exports` under Node).
 
-**Toolbar icon**: `background.js` redraws the ring itself on every refresh
+**shared/usage.js** follows the same contract (classic script, one global
+`UsageData`, loaded by `importScripts`/manifest `scripts` in the background
+and by a `<script>` tag in the popup; the options page doesn't need it). It
+owns `OPENCODE_ORIGIN`/`OPENCODE_USAGE_PATH`, `opencodeWindows` (payload →
+ordered windows with `percentLeft`, skipping windows without a numeric
+`percent`), `opencodePrimaryPercentLeft` and `worstRemaining`.
+
+**Toolbar icon**: which provider it reflects is a user setting
+(`claudeSettings.iconProvider`: `claude` | `opencode` | `worst`); `iconReading`
+takes that provider's 5-hour/rolling remaining, falls back to the other one
+when it has no reading, and only shows `!` when nothing can be displayed.
+`background.js` redraws the ring itself on every refresh
 (`OffscreenCanvas` + `ClaudeUsageRing.drawRing`) and calls
 `browser.action.setIcon` with the resulting `ImageData`, plus sets the badge
 text/color — there's no static "current usage" icon asset, it's generated
@@ -115,9 +145,11 @@ message sent by the popup's refresh button. The popup itself never fetches —
 it only reads `storage.local` and re-renders via `browser.storage.onChanged`.
 
 **Options page** (`options/`): reads/writes `claudeSettings` (`{ pollMinutes,
-orgIdOverride }`) in `storage.local` directly, and sends a `{ type:
-"listOrgs" }` message to the background script (which reuses
-`claudeFetchJson`) to populate the organization picker.
+orgIdOverride, opencodeApiKey, iconProvider }`) in `storage.local` directly,
+and sends a `{ type: "listOrgs" }` message to the background script (which
+reuses `claudeFetchJson`) to populate the organization picker. Its **Check
+key** button sends `{ type: "testOpenCodeKey", apiKey }` with the typed (not
+yet saved) key, so a wrong key is caught before it lands in the poll state.
 
 **i18n**: every user-facing string lives in `_locales/en/messages.json` and
 is applied either via `__MSG_<key>__` manifest placeholders, or in

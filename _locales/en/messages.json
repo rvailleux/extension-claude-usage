@@ -1,39 +1,63 @@
 {
   "extName": {
-    "message": "Claude Usage Ring",
+    "message": "Usage Ring",
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Shows your Claude.ai 5-hour session and weekly usage remaining as a rounded progress ring in the toolbar.",
+    "message": "Shows how much of your Claude.ai and OpenCode Go subscription quotas is left, as a rounded progress ring in the toolbar.",
     "description": "Extension description"
   },
   "actionTitle": {
-    "message": "Claude usage",
+    "message": "Usage",
     "description": "Default toolbar button tooltip"
   },
   "popupTitle": {
-    "message": "Claude Usage",
+    "message": "Usage",
     "description": "Popup document title"
   },
   "headerTitle": {
-    "message": "Claude Usage",
+    "message": "Usage",
     "description": "Popup header text"
   },
   "refreshButtonLabel": {
     "message": "Refresh now",
     "description": "Refresh button title/aria-label"
   },
+  "openOptionsTitle": {
+    "message": "Settings",
+    "description": "Popup settings button title/aria-label"
+  },
   "loadingText": {
     "message": "Loading usage…",
     "description": "Shown while the first fetch is in flight"
   },
+  "providerClaude": {
+    "message": "Claude",
+    "description": "Provider heading in the popup"
+  },
+  "providerOpenCode": {
+    "message": "OpenCode Go",
+    "description": "Provider heading in the popup"
+  },
   "openClaudeLink": {
     "message": "Open claude.ai",
-    "description": "Link shown in the auth-error state"
+    "description": "Link shown in the Claude auth-error state"
   },
   "primaryLabel": {
     "message": "Current session (5h)",
-    "description": "Label above the main ring"
+    "description": "Label above the Claude ring"
+  },
+  "opencodeLabelRolling": {
+    "message": "Current 5-hour limit",
+    "description": "Label above the OpenCode Go ring"
+  },
+  "opencodeLabelWeekly": {
+    "message": "Weekly",
+    "description": "OpenCode Go weekly window bar label"
+  },
+  "opencodeLabelMonthly": {
+    "message": "Monthly",
+    "description": "OpenCode Go monthly window bar label"
   },
   "ringCaption": {
     "message": "remaining",
@@ -45,16 +69,27 @@
   },
   "errorNetwork": {
     "message": "Couldn't reach claude.ai. Check your connection and try again.",
-    "description": "Shown on any other fetch failure"
+    "description": "Shown on any other Claude fetch failure"
   },
-  "lastTried": {
-    "message": "Last tried $TIME$",
-    "description": "Footer text in the error state",
-    "placeholders": { "time": { "content": "$1" } }
+  "errorAuthOpenCode": {
+    "message": "OpenCode Go rejected this key. Check it in Settings.",
+    "description": "Shown when the OpenCode Go endpoint answers 401/403"
+  },
+  "errorNetworkOpenCode": {
+    "message": "Couldn't reach opencode.ai. Check your connection and try again.",
+    "description": "Shown on any other OpenCode Go fetch failure"
+  },
+  "opencodeNoKey": {
+    "message": "No OpenCode Go key yet — add it in Settings to see this quota.",
+    "description": "Shown in the popup when no OpenCode Go API key is configured"
+  },
+  "opencodeOpenOptions": {
+    "message": "Open settings",
+    "description": "Button opening the options page"
   },
   "updatedAgo": {
     "message": "Updated $TIME$",
-    "description": "Footer text once usage data has loaded",
+    "description": "Provider heading timestamp once usage data has loaded",
     "placeholders": { "time": { "content": "$1" } }
   },
   "resetsIn": {
@@ -64,7 +99,7 @@
   },
   "percentLeft": {
     "message": "$PERCENT$% left",
-    "description": "Weekly bar percentage label",
+    "description": "Bar percentage label",
     "placeholders": { "percent": { "content": "$1" } }
   },
   "secondaryLabelSevenDay": {
@@ -88,20 +123,25 @@
     "description": "Weekly usage bucket label"
   },
   "badgeUnavailableTitle": {
-    "message": "Claude usage: unavailable (click for details)",
+    "message": "Usage: unavailable (click for details)",
     "description": "Toolbar tooltip when the last poll failed"
   },
-  "titleWithPercent": {
+  "titleClaudeWithPercent": {
     "message": "Claude usage: $PERCENT$% of session remaining",
-    "description": "Toolbar tooltip once usage data has loaded",
+    "description": "Toolbar tooltip when the icon shows Claude",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "titleOpencodeWithPercent": {
+    "message": "OpenCode Go usage: $PERCENT$% of the 5-hour limit remaining",
+    "description": "Toolbar tooltip when the icon shows OpenCode Go",
     "placeholders": { "percent": { "content": "$1" } }
   },
   "optionsPageTitle": {
-    "message": "Claude Usage Ring Settings",
+    "message": "Usage Ring Settings",
     "description": "Options page document title"
   },
   "optionsHeading": {
-    "message": "Claude Usage Ring",
+    "message": "Usage Ring",
     "description": "Options page heading"
   },
   "pollLabel": {
@@ -113,7 +153,7 @@
     "description": "Unit shown next to the poll-interval number input"
   },
   "orgLabel": {
-    "message": "Organization",
+    "message": "Claude organization",
     "description": "Options page org-picker field label"
   },
   "orgAutomatic": {
@@ -135,6 +175,54 @@
   "orgLoadError": {
     "message": "Couldn't load organizations. Make sure you're signed in to claude.ai.",
     "description": "Org-picker hint on fetch failure"
+  },
+  "iconSourceLabel": {
+    "message": "Toolbar ring shows",
+    "description": "Options page label for which provider drives the toolbar icon"
+  },
+  "iconSourceClaude": {
+    "message": "Claude",
+    "description": "Toolbar icon source option"
+  },
+  "iconSourceOpencode": {
+    "message": "OpenCode Go",
+    "description": "Toolbar icon source option"
+  },
+  "iconSourceWorst": {
+    "message": "Lowest of both",
+    "description": "Toolbar icon source option: whichever quota has less left"
+  },
+  "opencodeSectionTitle": {
+    "message": "OpenCode Go",
+    "description": "Options page section heading for OpenCode Go"
+  },
+  "opencodeKeyLabel": {
+    "message": "Subscription API key",
+    "description": "Options page label for the OpenCode Go API key field"
+  },
+  "opencodeKeyPlaceholder": {
+    "message": "sk-…",
+    "description": "Placeholder for the OpenCode Go API key field"
+  },
+  "opencodeKeyHint": {
+    "message": "Copy the key from your Go subscription at",
+    "description": "Options page hint before the opencode.ai/auth link"
+  },
+  "opencodeKeyHint2": {
+    "message": "The usage endpoint needs this key; a claude.ai session cookie can't be used.",
+    "description": "Options page hint after the opencode.ai/auth link"
+  },
+  "opencodeTestButton": {
+    "message": "Check key",
+    "description": "Options page button that verifies the typed OpenCode Go key"
+  },
+  "opencodeChecking": {
+    "message": "Checking key…",
+    "description": "Status while verifying the OpenCode Go key"
+  },
+  "opencodeKeyOk": {
+    "message": "Key works — usage found.",
+    "description": "Status when the OpenCode Go key is valid"
   },
   "saveButton": {
     "message": "Save",

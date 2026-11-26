@@ -2,13 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title data-i18n="optionsPageTitle">Claude Usage Ring Settings</title>
+    <title data-i18n="optionsPageTitle">Usage Ring Settings</title>
     <link rel="stylesheet" href="../popup/popup.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main class="options-main">
-      <h1 class="options-title" data-i18n="optionsHeading">Claude Usage Ring</h1>
+      <h1 class="options-title" data-i18n="optionsHeading">Usage Ring</h1>
 
       <section class="options-field">
         <label for="poll-minutes" data-i18n="pollLabel">Check for updates every</label>
@@ -19,7 +19,7 @@
       </section>
 
       <section class="options-field">
-        <label for="org-select" data-i18n="orgLabel">Organization</label>
+        <label for="org-select" data-i18n="orgLabel">Claude organization</label>
         <div class="options-row">
           <select id="org-select">
             <option value="" data-i18n="orgAutomatic">Automatic (first organization)</option>
@@ -35,6 +35,41 @@
           </button>
         </div>
         <p id="org-hint" class="muted small" aria-live="polite"></p>
+      </section>
+
+      <section class="options-field">
+        <label for="icon-provider" data-i18n="iconSourceLabel">Toolbar ring shows</label>
+        <select id="icon-provider">
+          <option value="claude" data-i18n="iconSourceClaude">Claude</option>
+          <option value="opencode" data-i18n="iconSourceOpencode">OpenCode Go</option>
+          <option value="worst" data-i18n="iconSourceWorst">Lowest of both</option>
+        </select>
+      </section>
+
+      <section class="options-field">
+        <h2 class="options-group-title" data-i18n="opencodeSectionTitle">OpenCode Go</h2>
+        <label for="opencode-key" data-i18n="opencodeKeyLabel">Subscription API key</label>
+        <div class="options-row">
+          <input
+            type="password"
+            id="opencode-key"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="sk-…"
+            data-i18n-placeholder="opencodeKeyPlaceholder"
+          />
+          <button id="test-opencode-btn" class="secondary-btn" type="button" data-i18n="opencodeTestButton">
+            Check key
+          </button>
+        </div>
+        <p class="muted small">
+          <span data-i18n="opencodeKeyHint">Copy the key from your Go subscription at</span>
+          <a href="https://opencode.ai/auth" target="_blank" rel="noopener">opencode.ai/auth</a>. <span
+            data-i18n="opencodeKeyHint2"
+            >The usage endpoint needs it; your claude.ai session cookie can't be used.</span
+          >
+        </p>
+        <p id="opencode-status" class="muted small" aria-live="polite"></p>
       </section>
 
       <div class="options-actions">

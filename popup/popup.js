@@ -1,17 +1,16 @@
-/* global ClaudeUsageRing */
+/* global ClaudeUsageRing, UsageData */
 
-const STORAGE_KEY = "claudeUsageState";
 const RING_RADIUS = 52;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-const SECONDARY_LABEL_KEYS = {
+const CLAUDE_SECONDARY_LABEL_KEYS = {
   seven_day: "secondaryLabelSevenDay",
   seven_day_opus: "secondaryLabelSevenDayOpus",
   seven_day_sonnet: "secondaryLabelSevenDaySonnet",
   seven_day_cowork: "secondaryLabelSevenDayCowork",
   seven_day_oauth: "secondaryLabelSevenDayOauth",
 };
-const SECONDARY_ORDER = [
+const CLAUDE_SECONDARY_ORDER = [
   "seven_day",
   "seven_day_opus",
   "seven_day_sonnet",
@@ -19,23 +18,22 @@ const SECONDARY_ORDER = [
   "seven_day_oauth",
 ];
 
-const els = {
-  loading: document.getElementById("state-loading"),
-  error: document.getElementById("state-error"),
-  errorMessage: document.getElementById("error-message"),
-  data: document.getElementById("state-data"),
-  ringProgress: document.getElementById("ring-progress"),
-  ringPercent: document.getElementById("ring-percent"),
-  sessionReset: document.getElementById("session-reset"),
-  secondaryList: document.getElementById("secondary-list"),
-  lastUpdated: document.getElementById("last-updated"),
-  refreshBtn: document.getElementById("refresh-btn"),
-  template: document.getElementById("secondary-item-template"),
+const OPENCODE_LABEL_KEYS = {
+  rolling: "opencodeLabelRolling",
+  weekly: "opencodeLabelWeekly",
+  monthly: "opencodeLabelMonthly",
 };
 
-els.ringProgress.style.strokeDasharray = String(RING_CIRCUMFERENCE);
+const els = {
+  loading: document.getElementById("state-loading"),
+  providers: document.getElementById("providers"),
+  providerTemplate: document.getElementById("provider-template"),
+  secondaryTemplate: document.getElementById("secondary-item-template"),
+  refreshBtn: document.getElementById("refresh-btn"),
+  optionsBtn: document.getElementById("options-btn"),
+};
 
-let lastState = null;
+let lastStates = {};
 
 function applyI18n(root = document) {
   for (const el of root.querySelectorAll("[data-i18n]")) {
@@ -46,12 +44,6 @@ function applyI18n(root = document) {
   }
   for (const el of root.querySelectorAll("[data-i18n-aria-label]")) {
     el.setAttribute("aria-label", browser.i18n.getMessage(el.dataset.i18nAriaLabel));
-  }
-}
-
-function showOnly(sectionEl) {
-  for (const el of [els.loading, els.error, els.data]) {
-    el.hidden = el !== sectionEl;
   }
 }
 
@@ -68,86 +60,188 @@ function relativeTime(ts) {
   return `${hr}h ago`;
 }
 
-function renderSecondary(usage) {
-  els.secondaryList.innerHTML = "";
-  for (const key of SECONDARY_ORDER) {
-    const bucket = usage[key];
+/** Normalize a Claude usage payload into the shared per-provider model. */
+function claudeModel(usage) {
+  const fiveHour = usage?.five_hour;
+  const bars = [];
+  for (const key of CLAUDE_SECONDARY_ORDER) {
+    const bucket = usage?.[key];
     if (!bucket) continue;
+    bars.push({
+      labelKey: CLAUDE_SECONDARY_LABEL_KEYS[key],
+      percentLeft: ClaudeUsageRing.percentRemaining(bucket.utilization),
+      resetsAt: bucket.resets_at,
+    });
+  }
+  return {
+    primaryLabelKey: "primaryLabel",
+    percentLeft: fiveHour ? ClaudeUsageRing.percentRemaining(fiveHour.utilization) : null,
+    primaryResetsAt: fiveHour?.resets_at || null,
+    bars,
+  };
+}
 
-    const remaining = ClaudeUsageRing.percentRemaining(bucket.utilization);
-    const node = els.template.content.cloneNode(true);
+/** Normalize an OpenCode Go usage payload into the same model. */
+function opencodeModel(usage) {
+  const windows = UsageData.opencodeWindows(usage || {});
+  const primary = windows.find((w) => w.id === "rolling") || null;
+  return {
+    primaryLabelKey: "opencodeLabelRolling",
+    percentLeft: primary ? primary.percentLeft : null,
+    primaryResetsAt: primary ? primary.resetsAt : null,
+    bars: windows
+      .filter((w) => w.id !== "rolling")
+      .map((w) => ({
+        labelKey: OPENCODE_LABEL_KEYS[w.id] || w.id,
+        percentLeft: w.percentLeft,
+        resetsAt: w.resetsAt,
+      })),
+  };
+}
 
-    node.querySelector(".secondary-label").textContent =
-      browser.i18n.getMessage(SECONDARY_LABEL_KEYS[key]) || key;
+const PROVIDERS = [
+  {
+    id: "claude",
+    storageKey: "claudeUsageState",
+    nameKey: "providerClaude",
+    model: claudeModel,
+    errorKeys: { auth: "errorAuth", network: "errorNetwork" },
+    // Where the "fix it" button sends the user when this provider errors.
+    errorAction: { labelKey: "openClaudeLink", href: "https://claude.ai" },
+  },
+  {
+    id: "opencode",
+    storageKey: "opencodeUsageState",
+    nameKey: "providerOpenCode",
+    model: opencodeModel,
+    errorKeys: { auth: "errorAuthOpenCode", network: "errorNetworkOpenCode" },
+    errorAction: { labelKey: "opencodeOpenOptions", options: true },
+  },
+];
+
+function renderBars(listEl, bars) {
+  for (const bar of bars) {
+    const node = els.secondaryTemplate.content.cloneNode(true);
+    node.querySelector(".secondary-label").textContent = browser.i18n.getMessage(bar.labelKey) || bar.labelKey;
     node.querySelector(".secondary-percent").textContent =
-      remaining === null ? "—" : browser.i18n.getMessage("percentLeft", [String(Math.round(remaining))]);
+      bar.percentLeft === null ? "—" : browser.i18n.getMessage("percentLeft", [String(Math.round(bar.percentLeft))]);
 
     const fill = node.querySelector(".bar-fill");
-    const color = ClaudeUsageRing.levelColor(remaining);
-    fill.style.width = `${remaining === null ? 0 : remaining}%`;
-    fill.style.background = color;
+    fill.style.width = `${bar.percentLeft === null ? 0 : bar.percentLeft}%`;
+    fill.style.background = ClaudeUsageRing.levelColor(bar.percentLeft);
 
     const resetEl = node.querySelector(".secondary-reset");
-    const countdown = ClaudeUsageRing.formatCountdown(bucket.resets_at);
+    const countdown = ClaudeUsageRing.formatCountdown(bar.resetsAt);
     resetEl.textContent = countdown ? browser.i18n.getMessage("resetsIn", [countdown]) : "";
 
-    els.secondaryList.appendChild(node);
+    listEl.appendChild(node);
   }
 }
 
-function render(state) {
-  lastState = state;
+function renderNote(section, { noteKey, action }) {
+  const note = section.querySelector(".provider-note");
+  const button = section.querySelector(".provider-action");
 
-  if (!state) {
-    showOnly(els.loading);
-    return;
+  if (noteKey) {
+    note.textContent = browser.i18n.getMessage(noteKey);
+    note.hidden = false;
   }
-
-  if (state.error) {
-    showOnly(els.error);
-    els.errorMessage.textContent = browser.i18n.getMessage(state.error === "auth" ? "errorAuth" : "errorNetwork");
-    els.lastUpdated.textContent = state.lastUpdated
-      ? browser.i18n.getMessage("lastTried", [relativeTime(state.lastUpdated)])
-      : "";
-    return;
+  if (action) {
+    button.textContent = browser.i18n.getMessage(action.labelKey);
+    button.hidden = false;
+    button.addEventListener("click", () => {
+      if (action.options) browser.runtime.openOptionsPage();
+      else if (action.href) window.open(action.href, "_blank", "noopener");
+    });
   }
+}
 
-  if (!state.usage) {
-    showOnly(els.loading);
-    return;
-  }
+function renderProvider(provider, state) {
+  const section = els.providerTemplate.content.cloneNode(true);
+  section.querySelector(".provider").dataset.provider = provider.id;
+  applyI18n(section);
 
-  showOnly(els.data);
-
-  const fiveHour = state.usage.five_hour;
-  const remaining = fiveHour ? ClaudeUsageRing.percentRemaining(fiveHour.utilization) : null;
-  const color = ClaudeUsageRing.levelColor(remaining);
-
-  els.ringPercent.textContent = remaining === null ? "—" : `${Math.round(remaining)}%`;
-  els.ringProgress.style.stroke = color;
-  const fraction = remaining === null ? 0 : remaining / 100;
-  els.ringProgress.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction));
-
-  const countdown = fiveHour ? ClaudeUsageRing.formatCountdown(fiveHour.resets_at) : null;
-  els.sessionReset.textContent = countdown ? browser.i18n.getMessage("resetsIn", [countdown]) : "";
-
-  renderSecondary(state.usage);
-
-  els.lastUpdated.textContent = state.lastUpdated
+  section.querySelector(".provider-name").textContent = browser.i18n.getMessage(provider.nameKey) || provider.id;
+  section.querySelector(".provider-updated").textContent = state?.lastUpdated
     ? browser.i18n.getMessage("updatedAgo", [relativeTime(state.lastUpdated)])
     : "";
+
+  const ring = section.querySelector(".ring-progress");
+  ring.style.strokeDasharray = String(RING_CIRCUMFERENCE);
+  ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE);
+
+  const hideRing = () => {
+    section.querySelector(".ring-wrap").hidden = true;
+    section.querySelector(".primary-meta").hidden = true;
+  };
+
+  if (state && state.configured === false) {
+    hideRing();
+    renderNote(section, { noteKey: "opencodeNoKey", action: { labelKey: "opencodeOpenOptions", options: true } });
+    return section;
+  }
+
+  if (state && state.error) {
+    hideRing();
+    renderNote(section, {
+      noteKey: provider.errorKeys[state.error] || "errorNetwork",
+      action: provider.errorAction,
+    });
+    return section;
+  }
+
+  if (!state || !state.usage) {
+    hideRing();
+    renderNote(section, { noteKey: "loadingText" });
+    return section;
+  }
+
+  const model = provider.model(state.usage);
+  const remaining = model.percentLeft;
+  const color = ClaudeUsageRing.levelColor(remaining);
+
+  section.querySelector(".ring-percent").textContent = remaining === null ? "—" : `${Math.round(remaining)}%`;
+  ring.style.stroke = color;
+  ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - (remaining === null ? 0 : remaining / 100)));
+
+  section.querySelector(".primary-label").textContent = browser.i18n.getMessage(model.primaryLabelKey);
+  const countdown = ClaudeUsageRing.formatCountdown(model.primaryResetsAt);
+  section.querySelector(".primary-meta .reset-text").textContent = countdown
+    ? browser.i18n.getMessage("resetsIn", [countdown])
+    : "";
+
+  renderBars(section.querySelector(".secondary-list"), model.bars);
+  return section;
+}
+
+function render(states) {
+  lastStates = states || {};
+  els.providers.innerHTML = "";
+  els.loading.hidden = PROVIDERS.some((p) => lastStates[p.id]);
+
+  for (const provider of PROVIDERS) {
+    els.providers.appendChild(renderProvider(provider, lastStates[provider.id] || null));
+  }
 }
 
 async function loadInitial() {
   applyI18n();
-  const stored = await browser.storage.local.get(STORAGE_KEY);
-  render(stored[STORAGE_KEY] || null);
+  const stored = await browser.storage.local.get(PROVIDERS.map((p) => p.storageKey));
+  const states = {};
+  for (const provider of PROVIDERS) states[provider.id] = stored[provider.storageKey] || null;
+  render(states);
 }
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes[STORAGE_KEY]) {
-    render(changes[STORAGE_KEY].newValue);
+  if (area !== "local") return;
+  let changed = false;
+  for (const provider of PROVIDERS) {
+    if (changes[provider.storageKey]) {
+      lastStates[provider.id] = changes[provider.storageKey].newValue || null;
+      changed = true;
+    }
   }
+  if (changed) render(lastStates);
 });
 
 els.refreshBtn.addEventListener("click", async () => {
@@ -159,9 +253,11 @@ els.refreshBtn.addEventListener("click", async () => {
   }
 });
 
+els.optionsBtn.addEventListener("click", () => browser.runtime.openOptionsPage());
+
 // Keep "Updated Xm ago" / countdowns fresh even with no new data.
 setInterval(() => {
-  if (lastState) render(lastState);
+  if (Object.keys(lastStates).length > 0) render(lastStates);
 }, 30000);
 
 loadInitial();

@@ -1,21 +1,24 @@
-# Claude Usage Ring
+# Usage Ring
 
-A browser extension (Firefox, Chrome, Edge) that shows your Claude.ai usage
-as a rounded progress ring, so you can see how much of your quota is left
-without switching tabs.
+A browser extension (Firefox, Chrome, Edge) that shows how much of your
+**Claude.ai** and **OpenCode Go** subscription quotas is left, as rounded
+progress rings, so you can see it without switching tabs.
 
 ## Features
 
 - **Toolbar icon** — a small colored ring (green → amber → red as you use up
   your quota) plus a badge number showing the remaining percentage, updated
   automatically in the background.
-- **Popup** — click the icon for a bigger ring showing your **current
-  5-hour session** limit, with a reset countdown, plus compact bars below
-  for your **weekly limits** (all-models, and per-model like Opus/Sonnet if
-  your plan reports them), each with its own reset countdown and a manual
-  refresh button.
-- **Options page** — configure how often it polls, and, if your account
-  belongs to more than one organization, which one to track.
+- **Popup** — click the icon for a ring showing your **current 5-hour
+  session** limit, with a reset countdown, plus compact bars below for your
+  **weekly limits** (all-models, and per-model like Opus/Sonnet if your plan
+  reports them). The same block is repeated for **OpenCode Go**, with its
+  rolling 5-hour, weekly and monthly windows. Every provider has its own
+  error/not-configured note and a manual refresh button sits in the header.
+- **Options page** — configure how often it polls, which claude.ai
+  organization to track, the **OpenCode Go API key**, and which provider's
+  5-hour window the toolbar ring should show (Claude, OpenCode Go, or
+  whichever of the two has less left).
 - **Keyboard shortcut** — `Ctrl+Shift+U` (`MacCtrl+Shift+U` on macOS) opens
   the popup without touching the mouse; customizable like any other browser
   shortcut.
@@ -26,7 +29,8 @@ without switching tabs.
 
 ### Where the data comes from
 
-The extension calls the same internal endpoints claude.ai's own web app
+**Claude** — the extension calls the same internal endpoints claude.ai's own
+web app
 uses, reusing your existing logged-in session cookie — it never asks for or
 handles your password or an API token:
 
@@ -41,6 +45,19 @@ you're simply not signed in), the popup shows an "unavailable"/"not signed
 in" state and the toolbar badge shows `!` instead of a percentage, rather
 than failing silently or showing stale numbers.
 
+**OpenCode Go** — a separate endpoint of the Go subscription, authenticated
+with the Go API key you paste into the options page (a claude.ai session
+cookie can't be used here):
+
+- `GET https://opencode.ai/zen/go/v1/usage` with `Authorization: Bearer
+  <key>` — returns `{ usage: { rolling, weekly, monthly } }`, each window
+  shaped as `{ status, percent, resetsAt }`, where `percent` is the share of
+  that window's allowance already used.
+
+It's undocumented too. A `401`/`403` means the key is wrong or the account
+no longer has a Go plan, and the popup says so instead of showing a made-up
+`0%`.
+
 ### Background script and refresh cycle
 
 `background.js` is the only piece that talks to the network. It:
@@ -50,15 +67,16 @@ than failing silently or showing stale numbers.
 2. Fetches usage, redraws the toolbar ring icon from scratch on an
    `OffscreenCanvas` (there's no static "current usage" icon — it's
    generated every poll), and sets the badge text/color/tooltip.
-3. Writes the result to `browser.storage.local` under one key
-   (`claudeUsageState`), which is the single source of truth: the popup
-   never fetches anything itself, it just reads that key and re-renders
-   whenever it changes (`browser.storage.onChanged`). A manual refresh from
-   the popup's button sends a one-off message to the background script and
-   bypasses the timer.
+3. Writes each provider's result to its own `browser.storage.local` key
+   (`claudeUsageState`, `opencodeUsageState`), which is the single source of
+   truth: the popup never fetches anything itself, it just reads those keys
+   and re-renders whenever they change (`browser.storage.onChanged`). A
+   manual refresh from the popup's button sends a one-off message to the
+   background script and bypasses the timer.
 4. Backs off on repeated failures instead of retrying forever: after
    consecutive errors it waits 5m → 10m → 20m → 40m, capped at 60m, before
-   trying again. A manual refresh always bypasses this backoff.
+   trying again — per provider, so a broken OpenCode key never delays the
+   Claude poll. A manual refresh always bypasses this backoff.
 5. Rechecks organization membership automatically if the cached org id
    stops working (e.g. because it changed), and always defers to a manually
    chosen organization from the options page if one is set.
@@ -86,6 +104,11 @@ canvas ring-drawing routine used for the toolbar icon. Being DOM-free means
 it can also be `require()`'d directly under plain Node for
 `shared/ring.test.js`, with no test framework or dependencies needed.
 
+`shared/usage.js` does the same job for the non-Claude provider: it holds
+the OpenCode Go origin/path and flattens a usage payload into ordered
+windows with a `percentLeft` (skipping any window the API didn't report a
+number for), plus the "lowest of both" helper the toolbar icon uses.
+
 ### Internationalization
 
 Every user-facing string lives in `_locales/en/messages.json` and is applied
@@ -96,16 +119,19 @@ adding a locale is just a matter of adding another `_locales/<lang>/` folder.
 
 ## Privacy & security
 
-- **No credentials handled by the extension.** It relies entirely on the
+- **Claude needs no credentials from you.** It relies entirely on the
   browser's own cookie jar for `https://claude.ai` (via `credentials:
-  "include"` on its `fetch` calls) — it never reads, stores, or transmits
-  your password, session cookie, or an API key anywhere.
+  "include"` on its `fetch` calls) — it never reads that session cookie.
+- **The OpenCode Go key you paste stays local.** It is kept in
+  `browser.storage.local` on your machine and only ever sent to
+  `https://opencode.ai/zen/go/v1/usage` as a Bearer token. Clearing the field
+  and saving removes it from this extension.
 - **Minimal permissions.** Only `storage`, `alarms`, and host access scoped
-  to `https://claude.ai/*` — no `<all_urls>`, no `tabs`, no `cookies`
-  permission, no content scripts injected into any page.
-- **Nothing leaves your machine except the two calls above.** The org id
-  and usage numbers are cached locally in `browser.storage.local`; there is
-  no analytics, telemetry, or third-party server involved.
+  to `https://claude.ai/*` and `https://opencode.ai/*` — no `<all_urls>`, no
+  `tabs`, no `cookies` permission, no content scripts injected into any page.
+- **Nothing leaves your machine except the calls above.** The org id, the
+  key and the usage numbers are cached locally in `browser.storage.local`;
+  there is no analytics, telemetry, or third-party server involved.
 - **No remote code.** Everything shipped is static JS/CSS/SVG/PNG bundled
   in the extension itself (including the vendored polyfill); nothing is
   fetched and executed at runtime.
@@ -157,10 +183,17 @@ options**):
 
 - **Poll interval** — how often, in minutes, the background script checks
   for updated usage. Changing it re-creates the alarm immediately.
-- **Organization** — if your claude.ai account belongs to more than one
-  organization, pick which one to track (defaults to "Automatic", the first
-  one returned by the API). Use the reload button next to the dropdown to
-  re-fetch the list if it changed.
+- **Claude organization** — if your claude.ai account belongs to more than
+  one organization, pick which one to track (defaults to "Automatic", the
+  first one returned by the API). Use the reload button next to the dropdown
+  to re-fetch the list if it changed.
+- **Toolbar ring shows** — which 5-hour window drives the toolbar ring and
+  badge: Claude (default), OpenCode Go, or "Lowest of both". If the chosen
+  provider has no data, the other one is shown instead of an empty icon.
+- **OpenCode Go key** — paste the API key from your Go subscription
+  ([opencode.ai/auth](https://opencode.ai/auth)). **Check key** verifies it
+  against the usage endpoint before you save; leave the field empty and save
+  to stop polling OpenCode Go.
 
 ## Package for distribution
 
@@ -181,8 +214,8 @@ neither needs the AMO signing step described below.
 ```
 
 Lints the extension, then builds an **unsigned** zip at
-`web-ext-artifacts/claude-usage-ring-<version>.zip` (README.md and the
-`scripts/` folder are excluded from the package). This zip can only be
+`web-ext-artifacts/usage-ring-<version>.zip` (README.md, `scripts/`, the
+`*.test.js` files and the repo docs are excluded from the package). This zip can only be
 loaded temporarily (`about:debugging` → Load Temporary Add-on) — Firefox
 refuses to install it permanently until it's signed by Mozilla.
 
@@ -245,9 +278,12 @@ usually means the version bump wasn't committed before tagging).
 node --test
 ```
 
-Runs the unit tests in `shared/ring.test.js` (percent/color math, countdown
-formatting, poll-backoff calculation) using Node's built-in test runner — no
-dependencies needed. The same command runs in CI
+Runs the unit tests using Node's built-in test runner — no dependencies
+needed: `shared/ring.test.js` (percent/color math, countdown formatting,
+poll-backoff calculation), `shared/usage.test.js` (OpenCode Go payload
+normalization) and `background.test.js`, which evaluates the real
+`background.js` in a `vm` context with stubbed `browser`/`fetch` to cover
+both polls, per-provider error/backoff state and the icon-selection rules. The same command runs in CI
 (`.github/workflows/ci.yml`), alongside `web-ext lint`, on every push and
 pull request.
 
@@ -260,11 +296,16 @@ shared/ring.js         Pure helpers shared by background + popup + options: % ma
                         color thresholds, reset countdown formatting, canvas ring
                         drawing, poll-backoff calculation
 shared/ring.test.js    Unit tests for shared/ring.js (node --test)
-popup/popup.html       Popup markup
+shared/usage.js        OpenCode Go payload normalization + "lowest remaining"
+shared/usage.test.js   Unit tests for shared/usage.js
+background.test.js     Runs background.js in a vm with stubbed browser/fetch
+popup/popup.html       Popup markup (provider block + bar templates)
 popup/popup.css        Theme-aware (light/dark) styling, shared by the options page
-popup/popup.js         Renders the SVG ring + weekly bars from stored usage state
-options/options.html   Options page markup (poll interval, org picker)
-options/options.js     Reads/writes settings, lists organizations via background
+popup/popup.js         Renders one ring + bar block per provider from stored state
+options/options.html   Options page markup (poll interval, org picker, icon source,
+                        OpenCode Go key)
+options/options.js     Reads/writes settings, lists organizations via background,
+                        verifies the OpenCode Go key
 vendor/browser-polyfill.js  Vendored webextension-polyfill (see vendor/README.md)
 _locales/en/messages.json  User-facing strings (browser.i18n)
 icons/icon-*.svg       Source art
@@ -282,9 +323,11 @@ code is vendored (`vendor/`) rather than pulled in via a package manager.
 
 - If `utilization` for a bucket is missing from the API response, that ring
   simply shows `—` (unknown) rather than guessing.
-- Relies on an internal endpoint (see "Privacy & security" above) — if
-  Anthropic changes its shape, the popup will show the "unavailable" error
-  state until the code is updated.
+- Relies on internal endpoints (see "Privacy & security" above) — if
+  Anthropic or OpenCode changes their shape, the popup will show the
+  "unavailable" error state until the code is updated.
+- OpenCode Go usage needs its API key; there is no cookie-based path, so a
+  Go user who hasn't pasted a key sees a "add it in Settings" note.
 - Only English strings are provided (`_locales/en`); the i18n plumbing is in
   place for further locales but none are translated yet.
 

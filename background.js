@@ -1,20 +1,30 @@
-/* global ClaudeUsageRing */
+/* global ClaudeUsageRing, UsageData */
 
-// Firefox loads vendor/browser-polyfill.js + shared/ring.js via manifest
-// background.scripts, so `browser`/`ClaudeUsageRing` already exist here.
-// Chrome/Edge only honor background.service_worker (ignoring `scripts`), so
-// the service worker has to pull those two files in itself.
+// Firefox loads vendor/browser-polyfill.js + shared/*.js via manifest
+// background.scripts, so `browser`/`ClaudeUsageRing`/`UsageData` already exist
+// here. Chrome/Edge only honor background.service_worker (ignoring `scripts`),
+// so the service worker has to pull those files in itself.
 if (typeof importScripts === "function" && typeof browser === "undefined") {
-  importScripts("vendor/browser-polyfill.js", "shared/ring.js");
+  importScripts("vendor/browser-polyfill.js", "shared/ring.js", "shared/usage.js");
 }
 
 const CLAUDE_ORIGIN = "https://claude.ai";
-const ALARM_NAME = "claude-usage-poll";
+const OPENCODE_ORIGIN = UsageData.OPENCODE_ORIGIN;
+const ALARM_NAME = "usage-poll";
 const POLL_MINUTES = 5;
-const STORAGE_KEY = "claudeUsageState";
+const CLAUDE_STATE_KEY = "claudeUsageState";
+const OPENCODE_STATE_KEY = "opencodeUsageState";
 const ORG_ID_KEY = "claudeOrgId";
 const SETTINGS_KEY = "claudeSettings";
-const DEFAULT_SETTINGS = { pollMinutes: POLL_MINUTES, orgIdOverride: null };
+const DEFAULT_SETTINGS = {
+  pollMinutes: POLL_MINUTES,
+  orgIdOverride: null,
+  opencodeApiKey: "",
+  // Which provider's 5-hour window drives the toolbar ring/badge:
+  // "claude" | "opencode" | "worst" (lowest remaining of the two).
+  iconProvider: "claude",
+};
+const ICON_PROVIDERS = ["claude", "opencode", "worst"];
 
 const ICON_SIZES = [16, 32, 48];
 
@@ -83,7 +93,7 @@ async function getOrgId({ forceRefresh = false } = {}) {
   return orgId;
 }
 
-async function fetchUsage() {
+async function fetchClaudeUsage() {
   let orgId = await getOrgId();
   let usage;
   try {
@@ -100,9 +110,48 @@ async function fetchUsage() {
   return usage;
 }
 
-async function refresh() {
-  const previous = (await browser.storage.local.get(STORAGE_KEY))[STORAGE_KEY] || {};
+/**
+ * OpenCode Go subscription usage. Unlike claude.ai this endpoint is not
+ * cookie-authenticated: it wants the Go API key the user copied from
+ * https://opencode.ai/auth, sent as a Bearer token. A 401/403 means the key is
+ * wrong or the account no longer has a Go plan.
+ */
+async function fetchOpenCodeUsage(apiKey) {
+  const res = await fetch(`${OPENCODE_ORIGIN}${UsageData.OPENCODE_USAGE_PATH}`, {
+    method: "GET",
+    headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
+  });
+  if (res.status === 401 || res.status === 403) {
+    const err = new Error("OpenCode Go rejected the API key");
+    err.code = "auth";
+    throw err;
+  }
+  if (!res.ok) {
+    // Includes 429: reported as a transient failure so the normal backoff applies.
+    const err = new Error(`opencode.ai request failed (${res.status})`);
+    err.code = "network";
+    throw err;
+  }
+  const payload = await res.json().catch(() => null);
+  if (!payload || UsageData.opencodeWindows(payload).length === 0) {
+    // Either a non-JSON interstitial or a plan reporting no windows at all:
+    // nothing usable to show, and never a fabricated "0% used".
+    const err = new Error("Unexpected OpenCode Go usage payload");
+    err.code = "auth";
+    throw err;
+  }
+  return payload;
+}
+
+function inBackoff(state) {
+  return Boolean(state && state.nextAttemptAt && Date.now() < state.nextAttemptAt);
+}
+
+/** Poll one provider into its own state key, with its own failure backoff. */
+async function pollProvider(stateKey, fetcher) {
+  const previous = (await browser.storage.local.get(stateKey))[stateKey] || {};
   const state = {
+    configured: true,
     lastUpdated: Date.now(),
     usage: null,
     error: null,
@@ -110,15 +159,58 @@ async function refresh() {
     nextAttemptAt: 0,
   };
   try {
-    state.usage = await fetchUsage();
+    state.usage = await fetcher();
   } catch (err) {
     state.error = err.code === "auth" ? "auth" : "network";
     state.consecutiveFailures = (previous.consecutiveFailures || 0) + 1;
     state.nextAttemptAt = Date.now() + ClaudeUsageRing.nextBackoffMs(state.consecutiveFailures);
   }
-  await browser.storage.local.set({ [STORAGE_KEY]: state });
-  await updateToolbarIcon(state);
+  await browser.storage.local.set({ [stateKey]: state });
   return state;
+}
+
+async function refreshOpenCode(settings) {
+  const apiKey = String(settings.opencodeApiKey || "").trim();
+  if (!apiKey) {
+    // No key configured is not an error and must not feed the backoff: the
+    // popup just points at the options page.
+    const state = {
+      configured: false,
+      lastUpdated: null,
+      usage: null,
+      error: null,
+      consecutiveFailures: 0,
+      nextAttemptAt: 0,
+    };
+    await browser.storage.local.set({ [OPENCODE_STATE_KEY]: state });
+    return state;
+  }
+  return pollProvider(OPENCODE_STATE_KEY, () => fetchOpenCodeUsage(apiKey));
+}
+
+/**
+ * Poll both providers. `respectBackoff` is what the alarm uses; a manual
+ * refresh from the popup always polls regardless.
+ */
+async function refresh({ respectBackoff = false } = {}) {
+  const settings = await getSettings();
+  const stored = await browser.storage.local.get([CLAUDE_STATE_KEY, OPENCODE_STATE_KEY]);
+  const previous = {
+    claude: stored[CLAUDE_STATE_KEY] || null,
+    opencode: stored[OPENCODE_STATE_KEY] || null,
+  };
+
+  const claudeTask =
+    respectBackoff && inBackoff(previous.claude)
+      ? Promise.resolve(previous.claude)
+      : pollProvider(CLAUDE_STATE_KEY, fetchClaudeUsage);
+  const opencodeTask =
+    respectBackoff && inBackoff(previous.opencode) ? Promise.resolve(previous.opencode) : refreshOpenCode(settings);
+
+  const [claude, opencode] = await Promise.all([claudeTask, opencodeTask]);
+  const states = { claude, opencode };
+  await updateToolbarIcon(states, settings);
+  return states;
 }
 
 function buildRingImageData(size, remaining, color) {
@@ -128,10 +220,47 @@ function buildRingImageData(size, remaining, color) {
   return ctx.getImageData(0, 0, size, size);
 }
 
-async function updateToolbarIcon(state) {
-  const remaining = state.usage?.five_hour
-    ? ClaudeUsageRing.percentRemaining(state.usage.five_hour.utilization)
-    : null;
+/** Remaining percent of one provider's 5-hour (rolling) window, or null. */
+function providerPercentLeft(id, states) {
+  if (id === "claude") {
+    const fiveHour = states.claude?.usage?.five_hour;
+    return fiveHour ? ClaudeUsageRing.percentRemaining(fiveHour.utilization) : null;
+  }
+  if (id === "opencode") {
+    return states.opencode?.usage ? UsageData.opencodePrimaryPercentLeft(states.opencode.usage) : null;
+  }
+  return null;
+}
+
+/**
+ * What the toolbar icon shows: `remaining` (0-100 or null) plus which
+ * provider that number came from, so the tooltip can name it.
+ */
+function iconReading(states, settings) {
+  const mode = ICON_PROVIDERS.includes(settings.iconProvider) ? settings.iconProvider : "claude";
+  const claudeLeft = providerPercentLeft("claude", states);
+  const opencodeLeft = providerPercentLeft("opencode", states);
+
+  if (mode === "opencode") {
+    return opencodeLeft !== null
+      ? { remaining: opencodeLeft, provider: "opencode" }
+      : { remaining: claudeLeft, provider: "claude" };
+  }
+  if (mode === "worst") {
+    const remaining = UsageData.worstRemaining([claudeLeft, opencodeLeft]);
+    const provider =
+      remaining !== null && claudeLeft !== null && opencodeLeft !== null && opencodeLeft < claudeLeft
+        ? "opencode"
+        : "claude";
+    return { remaining, provider };
+  }
+  return claudeLeft !== null
+    ? { remaining: claudeLeft, provider: "claude" }
+    : { remaining: opencodeLeft, provider: "opencode" };
+}
+
+async function updateToolbarIcon(states, settings) {
+  const { remaining, provider } = iconReading(states, settings);
   const color = ClaudeUsageRing.levelColor(remaining);
 
   const imageData = {};
@@ -146,15 +275,18 @@ async function updateToolbarIcon(state) {
     // fall back silently to the static SVG icon already set in the manifest.
   }
 
-  if (state.error) {
+  const chosenState = provider === "opencode" ? states.opencode : states.claude;
+  const unavailable =
+    Boolean(chosenState?.error) || (remaining === null && Boolean(states.claude?.error || states.opencode?.error));
+
+  if (unavailable) {
     await browser.action.setBadgeText({ text: "!" });
     await browser.action.setBadgeBackgroundColor({ color: "#9aa0a6" });
     await browser.action.setTitle({ title: browser.i18n.getMessage("badgeUnavailableTitle") });
     return;
   }
 
-  const badgeText = remaining === null ? "" : String(Math.round(remaining));
-  await browser.action.setBadgeText({ text: badgeText });
+  await browser.action.setBadgeText({ text: remaining === null ? "" : String(Math.round(remaining)) });
   await browser.action.setBadgeBackgroundColor({ color });
   try {
     await browser.action.setBadgeTextColor({ color: "#ffffff" });
@@ -165,7 +297,9 @@ async function updateToolbarIcon(state) {
     title:
       remaining === null
         ? browser.i18n.getMessage("actionTitle")
-        : browser.i18n.getMessage("titleWithPercent", [String(Math.round(remaining))]),
+        : browser.i18n.getMessage(provider === "opencode" ? "titleOpencodeWithPercent" : "titleClaudeWithPercent", [
+            String(Math.round(remaining)),
+          ]),
   });
 }
 
@@ -185,15 +319,24 @@ browser.storage.onChanged.addListener((changes, area) => {
   const newValue = changes[SETTINGS_KEY].newValue || {};
   if (oldValue.pollMinutes !== newValue.pollMinutes) createAlarm();
   if (oldValue.orgIdOverride !== newValue.orgIdOverride) refresh();
+  if (oldValue.opencodeApiKey !== newValue.opencodeApiKey) refresh();
+  if (oldValue.iconProvider !== newValue.iconProvider) {
+    // No re-poll needed: re-render the icon from the states already stored.
+    Promise.all([getSettings(), browser.storage.local.get([CLAUDE_STATE_KEY, OPENCODE_STATE_KEY])]).then(
+      ([settings, stored]) =>
+        updateToolbarIcon(
+          { claude: stored[CLAUDE_STATE_KEY] || null, opencode: stored[OPENCODE_STATE_KEY] || null },
+          settings
+        )
+    );
+  }
 });
 
-browser.alarms.onAlarm.addListener(async (alarm) => {
+browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== ALARM_NAME) return;
-  const stored = (await browser.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
   // Back off from a persistently-erroring endpoint instead of retrying every
-  // POLL_MINUTES forever; a manual refresh (below) always bypasses this.
-  if (stored?.nextAttemptAt && Date.now() < stored.nextAttemptAt) return;
-  refresh();
+  // POLL_MINUTES forever (per provider); a manual refresh always bypasses this.
+  refresh({ respectBackoff: true });
 });
 
 browser.runtime.onMessage.addListener((message) => {
@@ -202,6 +345,16 @@ browser.runtime.onMessage.addListener((message) => {
   }
   if (message?.type === "listOrgs") {
     return claudeFetchJson("/api/organizations");
+  }
+  if (message?.type === "testOpenCodeKey") {
+    // Used by the options page's "Check key" button with the typed (not yet
+    // saved) key, so a wrong key is caught before it feeds the poll state.
+    const apiKey = String(message.apiKey || "").trim();
+    if (!apiKey) return Promise.resolve({ ok: false, code: "auth" });
+    return fetchOpenCodeUsage(apiKey).then(
+      () => ({ ok: true }),
+      (err) => ({ ok: false, code: err.code === "auth" ? "auth" : "network" })
+    );
   }
   return undefined;
 });

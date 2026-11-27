@@ -12,12 +12,16 @@
   const OPENCODE_ORIGIN = "https://opencode.ai";
   // Undocumented public usage endpoint of the OpenCode Go subscription,
   // authenticated with the Go API key (Bearer), not with a browser session.
+  // Two paths answer the same payload today (`/zen/...` is what the console
+  // uses, `/inference/...` is what the API gateway exposes), so try them in
+  // order rather than breaking whenever one of them is renamed.
   // Response shape (verified against the live endpoint):
   //   { usage: { rolling: { status, percent, resetsAt },
   //              weekly:  { status, percent, resetsAt },
   //              monthly: { status, percent, resetsAt } } }
   // `percent` is already a 0-100 percentage of the allowance *used*.
-  const OPENCODE_USAGE_PATH = "/zen/go/v1/usage";
+  const OPENCODE_USAGE_PATHS = ["/zen/go/v1/usage", "/inference/go/v1/usage"];
+  const OPENCODE_USAGE_PATH = OPENCODE_USAGE_PATHS[0];
 
   const OPENCODE_WINDOW_ORDER = ["rolling", "weekly", "monthly"];
 
@@ -76,6 +80,7 @@
   global.UsageData = {
     OPENCODE_ORIGIN,
     OPENCODE_USAGE_PATH,
+    OPENCODE_USAGE_PATHS,
     OPENCODE_WINDOW_ORDER,
     opencodeWindows,
     opencodePrimaryPercentLeft,

@@ -61,6 +61,25 @@ async function loadOrgs(selectedOrgId) {
   }
 }
 
+const OPENCODE_ORIGIN_PATTERN = "https://opencode.ai/*";
+
+/** Whether this browser granted the extension access to opencode.ai. */
+async function opencodePermissionGranted() {
+  try {
+    return await browser.permissions.contains({ origins: [OPENCODE_ORIGIN_PATTERN] });
+  } catch (err) {
+    // Older/unusual builds may not expose permissions.contains; assume granted
+    // rather than showing a misleading warning.
+    return true;
+  }
+}
+
+function errorMessageKey(code) {
+  if (code === "auth") return "errorAuthOpenCode";
+  if (code === "permission") return "errorPermissionOpenCode";
+  return "errorNetworkOpenCode";
+}
+
 async function checkOpenCodeKey() {
   const apiKey = els.opencodeKey.value.trim();
   if (!apiKey) {
@@ -72,11 +91,14 @@ async function checkOpenCodeKey() {
     const result = await browser.runtime.sendMessage({ type: "testOpenCodeKey", apiKey });
     if (result?.ok) {
       els.opencodeStatus.textContent = browser.i18n.getMessage("opencodeKeyOk");
-    } else {
-      els.opencodeStatus.textContent = browser.i18n.getMessage(
-        result?.code === "auth" ? "errorAuthOpenCode" : "errorNetworkOpenCode"
-      );
+      return;
     }
+    // The background classifies the failure (rejected key vs. browser refused
+    // to make the request vs. transport error) - show the real reason, plus
+    // the underlying detail, instead of always blaming the network.
+    let text = browser.i18n.getMessage(errorMessageKey(result?.code));
+    if (result?.detail) text += ` (${result.detail})`;
+    els.opencodeStatus.textContent = text;
   } catch (err) {
     els.opencodeStatus.textContent = browser.i18n.getMessage("errorNetworkOpenCode");
   }
@@ -88,6 +110,9 @@ async function init() {
   els.pollMinutes.value = settings.pollMinutes;
   els.iconProvider.value = settings.iconProvider;
   els.opencodeKey.value = settings.opencodeApiKey;
+  if (!(await opencodePermissionGranted())) {
+    els.opencodeStatus.textContent = browser.i18n.getMessage("opencodePermissionHint");
+  }
   await loadOrgs(settings.orgIdOverride);
 }
 

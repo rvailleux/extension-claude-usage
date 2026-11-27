@@ -98,6 +98,15 @@ keep it there. No key configured is not an error: the state gets
 `configured: false` and the popup points at the options page; 401/403 maps to
 `error: "auth"` ("key rejected or no Go plan").
 
+Two paths answer the same payload (`/zen/go/v1/usage`, `/inference/go/v1/usage`)
+and both live in `UsageData.OPENCODE_USAGE_PATHS`; a 404 falls through to the
+next one. A `fetch` that *throws* is classified with
+`browser.permissions.contains` into `error: "permission"` (host permission not
+granted — the browser refuses before the request leaves the extension) versus
+`error: "network"`, and `errorDetail` keeps the browser's own message or the
+HTTP status. Never collapse these into one "couldn't reach the site" message:
+that is exactly how a missing host permission stays hidden for weeks.
+
 Fetched state is written to `browser.storage.local` under one key
 (`claudeUsageState` = `{ configured, lastUpdated, usage, error,
 consecutiveFailures, nextAttemptAt }`, plus a parallel `opencodeUsageState`

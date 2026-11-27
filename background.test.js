@@ -36,7 +36,7 @@ function jsonResponse(body, { status = 200, contentType = "application/json" } =
 }
 
 /** Boot one isolated copy of the background script. */
-function boot({ settings = {}, routes = {}, stored = {} } = {}) {
+function boot({ settings = {}, routes = {}, stored = {}, permissionGranted = true } = {}) {
   const calls = { badge: [], badgeColor: [], title: [], icon: 0, fetches: [] };
   const store = { ...stored };
   if (Object.keys(settings).length) store.claudeSettings = settings;
@@ -73,6 +73,10 @@ function boot({ settings = {}, routes = {}, stored = {} } = {}) {
       setIcon: async () => calls.icon++,
     },
     i18n: { getMessage: (key, subs) => `${key}${subs ? ":" + subs.join(",") : ""}` },
+    permissions: {
+      contains: async () => permissionGranted,
+      getAll: async () => ({ origins: ["https://claude.ai/*", "https://opencode.ai/*"], permissions: ["storage", "alarms"] }),
+    },
   };
 
   const fetch = async (url, init = {}) => {
@@ -187,7 +191,7 @@ test("a rejected OpenCode key errors in its own state without disturbing the Cla
   assert.equal(calls.badge.at(-1), "58");
 });
 
-test("an HTML page instead of a usage payload is treated as an auth failure", async () => {
+test("an HTML interstitial instead of a usage payload is an 'unexpected payload' failure, not a 0% quota", async () => {
   const { context } = boot({
     settings: { opencodeApiKey: "go-key" },
     routes: defaultRoutes({
@@ -197,7 +201,9 @@ test("an HTML page instead of a usage payload is treated as an auth failure", as
   });
 
   const states = await context.refresh();
-  assert.equal(states.opencode.error, "auth");
+  assert.equal(states.opencode.error, "network");
+  assert.equal(states.opencode.errorDetail, "unexpected payload");
+  assert.equal(states.opencode.usage, null);
 });
 
 test("iconProvider 'opencode' and 'worst' pick the matching provider's number", async () => {
@@ -245,4 +251,102 @@ test("the badge shows '!' when the only polled providers all failed", async () =
   assert.equal(states.claude.error, "network");
   assert.equal(calls.badge.at(-1), "!");
   assert.ok(calls.title.at(-1).startsWith("badgeUnavailableTitle"));
+});
+
+test("a 404 on the first usage path falls back to the second alias", async () => {
+  const { context, calls } = boot({
+    settings: { opencodeApiKey: "go-key" },
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => jsonResponse({}, { status: 404 }),
+      "https://opencode.ai/inference/go/v1/usage": async () => jsonResponse(OPENCODE_USAGE),
+    }),
+  });
+
+  const states = await context.refresh();
+
+  assert.equal(states.opencode.error, null);
+  assert.deepEqual(states.opencode.usage, OPENCODE_USAGE);
+  assert.equal(states.opencode.errorDetail, null);
+  assert.deepEqual(
+    calls.fetches.filter((f) => f.url.includes("opencode.ai")).map((f) => new URL(f.url).pathname),
+    ["/zen/go/v1/usage", "/inference/go/v1/usage"]
+  );
+});
+
+test("a blocked request (host permission not granted) is reported as 'permission', with the browser's message", async () => {
+  const { context, calls } = boot({
+    settings: { opencodeApiKey: "go-key" },
+    permissionGranted: false,
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => {
+        throw new TypeError("NetworkError when attempting to fetch resource.");
+      },
+    }),
+  });
+
+  const states = await context.refresh();
+
+  assert.equal(states.opencode.error, "permission");
+  assert.equal(states.opencode.errorDetail, "NetworkError when attempting to fetch resource.");
+  assert.equal(calls.badge.at(-1), "58", "the Claude number is still what the icon shows");
+});
+
+test("the same thrown fetch with the permission granted stays a network error", async () => {
+  const { context } = boot({
+    settings: { opencodeApiKey: "go-key" },
+    permissionGranted: true,
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    }),
+  });
+
+  const states = await context.refresh();
+  assert.equal(states.opencode.error, "network");
+  assert.equal(states.opencode.errorDetail, "Failed to fetch");
+});
+
+test("an unexpected HTTP status keeps its code in the state detail", async () => {
+  const { context } = boot({
+    settings: { opencodeApiKey: "go-key" },
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => jsonResponse({}, { status: 502 }),
+    }),
+  });
+
+  const states = await context.refresh();
+  assert.equal(states.opencode.error, "network");
+  assert.equal(states.opencode.errorDetail, "HTTP 502");
+});
+
+test("testOpenCodeKey reports the failure kind and detail back to the options page", async () => {
+  const blocked = boot({
+    settings: {},
+    permissionGranted: false,
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => {
+        throw new TypeError("NetworkError when attempting to fetch resource.");
+      },
+    }),
+  });
+  const blockedReply = await blocked.listeners.message[0]({ type: "testOpenCodeKey", apiKey: "go-key" });
+  assert.equal(blockedReply.ok, false);
+  assert.equal(blockedReply.code, "permission");
+  assert.match(blockedReply.detail, /NetworkError/);
+
+  const working = boot({ settings: {}, routes: defaultRoutes() });
+  const okReply = await working.listeners.message[0]({ type: "testOpenCodeKey", apiKey: "go-key" });
+  assert.equal(okReply.ok, true);
+  assert.equal(okReply.code, null);
+  assert.equal(okReply.detail, null);
+
+  const rejected = boot({
+    settings: {},
+    routes: defaultRoutes({
+      "https://opencode.ai/zen/go/v1/usage": async () => jsonResponse({ error: "Unauthorized" }, { status: 401 }),
+    }),
+  });
+  const authReply = await rejected.listeners.message[0]({ type: "testOpenCodeKey", apiKey: "bad-key" });
+  assert.equal(authReply.code, "auth");
 });

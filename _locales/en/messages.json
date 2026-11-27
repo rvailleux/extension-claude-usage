@@ -79,6 +79,18 @@
     "message": "Couldn't reach opencode.ai. Check your connection and try again.",
     "description": "Shown on any other OpenCode Go fetch failure"
   },
+  "errorPermission": {
+    "message": "This browser doesn't let the extension reach claude.ai. Allow the site in the extension's settings, then refresh.",
+    "description": "Shown when the claude.ai host permission was not granted"
+  },
+  "errorPermissionOpenCode": {
+    "message": "This browser doesn't let the extension reach opencode.ai. Allow the site in the extension's settings, then refresh.",
+    "description": "Shown when the opencode.ai host permission was not granted"
+  },
+  "opencodePermissionHint": {
+    "message": "This browser hasn't granted access to opencode.ai. Check \"Site access\" (Chrome/Edge) or \"Permissions\" (Firefox) for this extension, then try again.",
+    "description": "Options page warning when the opencode.ai host permission is missing"
+  },
   "opencodeNoKey": {
     "message": "No OpenCode Go key yet — add it in Settings to see this quota.",
     "description": "Shown in the popup when no OpenCode Go API key is configured"

@@ -49,10 +49,11 @@ than failing silently or showing stale numbers.
 with the Go API key you paste into the options page (a claude.ai session
 cookie can't be used here):
 
-- `GET https://opencode.ai/zen/go/v1/usage` with `Authorization: Bearer
-  <key>` — returns `{ usage: { rolling, weekly, monthly } }`, each window
-  shaped as `{ status, percent, resetsAt }`, where `percent` is the share of
-  that window's allowance already used.
+- `GET https://opencode.ai/zen/go/v1/usage` (and the equivalent
+  `https://opencode.ai/inference/go/v1/usage`, tried as a fallback) with
+  `Authorization: Bearer <key>` — returns `{ usage: { rolling, weekly,
+  monthly } }`, each window shaped as `{ status, percent, resetsAt }`, where
+  `percent` is the share of that window's allowance already used.
 
 It's undocumented too. A `401`/`403` means the key is wrong or the account
 no longer has a Go plan, and the popup says so instead of showing a made-up
@@ -328,6 +329,22 @@ code is vendored (`vendor/`) rather than pulled in via a package manager.
   "unavailable" error state until the code is updated.
 - OpenCode Go usage needs its API key; there is no cookie-based path, so a
   Go user who hasn't pasted a key sees a "add it in Settings" note.
+
+## Troubleshooting
+
+**"This browser doesn't let the extension reach opencode.ai."** The browser
+never made the request: it needs the `https://opencode.ai/*` host permission.
+An extension update that adds a host permission isn't always granted
+automatically, and site access can also be narrowed by hand. Check
+
+- Chrome/Edge: `chrome://extensions` (or `edge://extensions`) → this extension
+  → **Details** → **Site access** → allow `opencode.ai` (or "on all sites"),
+  then reload the extension.
+- Firefox: `about:addons` → this extension → **Permissions** → enable access
+  to `opencode.ai`, or reinstall the `.xpi` and accept the permission prompt.
+
+The same message with the detail `Failed to fetch` and no permission warning
+in the options page is a genuine network/DNS problem instead.
 - Only English strings are provided (`_locales/en`); the i18n plumbing is in
   place for further locales but none are translated yet.
 

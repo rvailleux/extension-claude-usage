@@ -105,7 +105,7 @@ const PROVIDERS = [
     storageKey: "claudeUsageState",
     nameKey: "providerClaude",
     model: claudeModel,
-    errorKeys: { auth: "errorAuth", network: "errorNetwork" },
+    errorKeys: { auth: "errorAuth", network: "errorNetwork", permission: "errorPermission" },
     // Where the "fix it" button sends the user when this provider errors.
     errorAction: { labelKey: "openClaudeLink", href: "https://claude.ai" },
   },
@@ -114,7 +114,11 @@ const PROVIDERS = [
     storageKey: "opencodeUsageState",
     nameKey: "providerOpenCode",
     model: opencodeModel,
-    errorKeys: { auth: "errorAuthOpenCode", network: "errorNetworkOpenCode" },
+    errorKeys: {
+      auth: "errorAuthOpenCode",
+      network: "errorNetworkOpenCode",
+      permission: "errorPermissionOpenCode",
+    },
     errorAction: { labelKey: "opencodeOpenOptions", options: true },
   },
 ];
@@ -138,13 +142,18 @@ function renderBars(listEl, bars) {
   }
 }
 
-function renderNote(section, { noteKey, action }) {
+function renderNote(section, { noteKey, action, detail }) {
   const note = section.querySelector(".provider-note");
+  const detailEl = section.querySelector(".provider-detail");
   const button = section.querySelector(".provider-action");
 
   if (noteKey) {
     note.textContent = browser.i18n.getMessage(noteKey);
     note.hidden = false;
+  }
+  if (detail) {
+    detailEl.textContent = detail;
+    detailEl.hidden = false;
   }
   if (action) {
     button.textContent = browser.i18n.getMessage(action.labelKey);
@@ -186,6 +195,7 @@ function renderProvider(provider, state) {
     renderNote(section, {
       noteKey: provider.errorKeys[state.error] || "errorNetwork",
       action: provider.errorAction,
+      detail: state.errorDetail || null,
     });
     return section;
   }

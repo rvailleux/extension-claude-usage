@@ -7,6 +7,29 @@ entry.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-26
+
+### Fixed
+
+- "Couldn't reach opencode.ai" was a catch-all that hid the real cause. A
+  request the browser refuses to make (host permission not granted, e.g. after
+  an update that added `https://opencode.ai/*`, or with site access set to
+  on-click) throws a bare `TypeError: Failed to fetch`, which was reported as a
+  network problem. It is now classified against
+  `browser.permissions.contains`: the popup says the browser is blocking the
+  request, the options page warns before you even try, and the underlying
+  message (`Failed to fetch`, `HTTP 502`, `unexpected payload`) is shown as a
+  small detail line so a support report is actionable.
+- Try `/inference/go/v1/usage` as well as `/zen/go/v1/usage` (both answer the
+  same payload today, and the gateway path is the one that works for API keys);
+  a 404 moves on to the next path instead of failing the poll.
+
+### Changed
+
+- A non-JSON response (Cloudflare/maintenance interstitial) is now a network
+  failure with an "unexpected payload" detail rather than being reported as a
+  rejected key.
+
 ## [1.1.0] - 2026-11-26
 
 ### Added

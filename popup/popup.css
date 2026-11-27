@@ -249,6 +249,13 @@ main {
   line-height: 1.45;
 }
 
+.provider-detail {
+  margin: 4px 0 0;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0.8;
+}
+
 .provider-action {
   display: block;
   margin: 10px auto 0;
